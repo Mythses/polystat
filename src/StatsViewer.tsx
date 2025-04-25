@@ -416,3 +416,4 @@ const StatsViewer = () => {
 };
 
 export default StatsViewer;
+
