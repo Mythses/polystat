@@ -198,10 +198,232 @@ const StatsViewer = () => {
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
           Polystats
         </h1>
-        {/* ... rest of your component remains the same ... */}
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <Input type="text" placeholder="User ID" value={userId} onChange={(e) => setUserId(e.target.value)} className="flex-1 bg-black/20 text-white border-purple-500/30 placeholder:text-gray-500 focus:ring-purple-500/50" onKeyDown={(e) => { if (e.key === "Enter") fetchStats(1); }} />
+          <Input type="text" placeholder="Track ID" value={trackId} onChange={(e) => setTrackId(e.target.value)} className="flex-1 bg-black/20 text-white border-purple-500/30 placeholder:text-gray-500 focus:ring-purple-500/50" onKeyDown={(e) => { if (e.key === "Enter") fetchStats(1); }} />
+          <div className="flex items-center space-x-2">
+            <Switch checked={onlyVerified} onCheckedChange={setOnlyVerified} className="data-[state=checked]:bg-purple-500 data-[state=unchecked]:bg-gray-700 focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black transition-colors duration-200" />
+            <Label htmlFor="airplane-mode" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white">
+              Only Verified
+            </Label>
+          </div>
+          <Button onClick={() => fetchStats(1)} disabled={loading} className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-3 rounded-full transition-all duration-300 hover:from-purple-600 hover:to-blue-600 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            {loading ? (
+              <>
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Loading...
+              </>
+            ) : (
+              <>
+                <Search className="w-5 h-5" />
+                Search
+              </>
+            )}
+          </Button>
+        </div>
+
+        {error && (
+          <Alert variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/30">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {statsData && statsData.entries && (
+          <div className="space-y-4">
+            {userData ? (
+              <>
+                <div className="text-center">
+                  <p className="text-lg sm:text-xl font-semibold text-purple-300 tracking-wide mb-2 flex items-center justify-center gap-2">
+                    <User className="w-5 h-5" />
+                    Your Stats
+                  </p>
+                  <p className="text-gray-400">Your personal performance.</p>
+                </div>
+                <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="text-2xl sm:text-3xl font-bold text-purple-400 flex items-center justify-center">
+                      {userData.name}
+                      <span className="text-lg ml-2 text-gray-300">
+                        (Rank: {userData.rank || "N/A"})
+                      </span>
+                    </CardTitle>
+                    <CardDescription className="text-xl text-blue-400 text-center">
+                      {formatTime(userData.frames)}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p>
+                      <span className="font-semibold text-gray-300">
+                        User ID:
+                      </span>{" "}
+                      {userData.userId}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-gray-300">
+                        Car Colors:
+                      </span>{" "}
+                      {displayCarColors(userData.carColors)}
+                    </p>
+                    <p className="flex items-center gap-1">
+                      <span className="font-semibold text-gray-300">
+                        Frames:
+                      </span>{" "}
+                      <Timer className="w-4 h-4 inline-block" /> {userData.frames}
+                    </p>
+                    <p className="flex items-center gap-1">
+                      <span className="font-semibold text-gray-300">
+                        Verified:
+                      </span>
+                      <VerifiedStateIcon
+                        verifiedState={userData.verifiedState}
+                      />
+                    </p>
+                    <div className="space-y-2">
+                      <p className="font-semibold text-gray-300">Recording:</p>
+                      <Card className="bg-gray-800/50 border-gray-700 w-full">
+                        <CardContent className="p-4 overflow-x-auto no-scroll">
+                          {recordingData && recordingData[0]
+                            ? displayRecording(recordingData[0].recording)
+                            : displayRecording(null)}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-purple-400">
+                    <User className="w-5 h-5" />
+                    Your Stats
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p>Your stats are not available.</p>
+                </CardContent>
+              </Card>
+            )}
+            <>
+              <div className="text-center">
+                <p className="text-lg sm:text-xl font-semibold text-blue-300 tracking-wide mb-2 flex items-center justify-center gap-2">
+                  <Trophy className="w-5 h-5" />
+                  Leaderboard
+                </p>
+                <p className="text-gray-400">
+                  Total Entries: {statsData.total}
+                </p>
+              </div>
+              <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg">
+                <CardHeader></CardHeader>
+                <CardContent>
+                  <div className="space-y-4 overflow-hidden">
+                    {statsData.entries.map((entry, index) => {
+                      const isUserEntry = entry.userId === userId;
+                      return (
+                        <div key={entry.id} className={cn("p-4 rounded-lg bg-gray-800/50 border border-gray-700", isUserEntry && "border-2 border-purple-500/50", "overflow-hidden")}>
+                          <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 items-center">
+                            <div>
+                              <span className="font-semibold text-gray-300">
+                                Rank:
+                              </span>{" "}
+                              {entry.rank}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-300">
+                                Name:
+                              </span>{" "}
+                              {entry.name}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-300">
+                                Car Colors:
+                              </span>{" "}
+                              {displayCarColors(entry.carColors)}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-300">
+                                Frames:
+                              </span>{" "}
+                              {entry.frames} ({formatTime(entry.frames)})
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="font-semibold text-gray-300">
+                                Verified:
+                              </span>
+                              <VerifiedStateIcon
+                                verifiedState={entry.verifiedState}
+                              />
+                            </div>
+                            <div className="overflow-x-auto no-scroll">
+                              <span className="font-semibold text-gray-300">
+                                Recording:
+                              </span>
+                              {recordingData && recordingData[index]
+                                ? displayRecording(
+                                  recordingData[index]?.recording || null
+                                )
+                                : displayRecording(null)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-gray-300">
+                      Page {currentPage} of {totalPagesRef.current}
+                    </span>
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(Math.min(currentPage + 10, totalPagesRef.current))} disabled={currentPage + 10 >= totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                      +{10}
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(totalPagesRef.current)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                    {userPage && (
+                      <Button variant="outline" onClick={() => handlePageChange(userPage)} disabled={loading} className="bg-purple-900/50 text-white hover:bg-purple-800/50">
+                        Go to Your Page ({userPage})
+                      </Button>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Input type="text" placeholder="Go to pos." value={goToPosition} onChange={(e) => setGoToPosition(e.target.value)} className="w-24 bg-gray-800/50 text-white border-gray-700 placeholder:text-gray-500" onKeyDown={(e) => { if (e.key === "Enter") handleGoToPage(); }} />
+                      <Button onClick={handleGoToPage} disabled={loading} className="bg-blue-500/20 text-blue-300 hover:bg-blue-500/30">
+                        Go
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          </div>
+        )}
       </div>
+      <style>{`
+        .no-scroll::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scroll {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 };
 
 export default StatsViewer;
+
