@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 
-interface LeaderboardEntry { id: number; userId: string; name: string; carColors: string; frames: number; verifiedState: number; position: number; rank?: number; }
+interface LeaderboardEntry { id: number; userId: string; name: string; carColors: string; frames: number; verifiedState: number; position: number; rank?: number; percent?: number; }
 interface LeaderboardData { total: number; entries: LeaderboardEntry[]; userEntry: LeaderboardEntry | null; }
 interface RecordingData { recording: string; frames: number; verifiedState: number; carColors: string; }
 
@@ -77,7 +77,7 @@ const StatsViewer = () => {
         const userUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${trackId}&skip=${userSkip}&amount=${userAmount}&onlyVerified=${onlyVerified}&userTokenHash=${userId}`)}`;
         const uData: LeaderboardData = await (await fetch(userUrl)).json();
         const foundUser = uData.entries.find((e) => e.userId === userId);
-        if (foundUser) setUserData({ ...foundUser, rank: uData.userEntry?.position || 0 });
+        if (foundUser) setUserData({ ...foundUser, rank: uData.userEntry?.position || 0, percent: ((uData.userEntry?.position || 0) / data.total) * 100 });
         setUserPage(Math.ceil(userEntry.position / AMOUNT));
       }
 
@@ -88,6 +88,7 @@ const StatsViewer = () => {
           return {
             ...entry,
             rank: result.userEntry?.position || 0,
+            percent: ((result.userEntry?.position || 0) / data.total) * 100
           }
         })
       );
@@ -143,21 +144,21 @@ const StatsViewer = () => {
         {colors.map((c, i) => {
           const hex = `#${c.padEnd(6, "0")}`;
           return (
-            <motion.div 
-              key={i} 
-              style={{ backgroundColor: hex, cursor: "pointer" }} 
-              className="w-4 h-4 rounded" 
-              title={hex} 
-              onClick={() => copyToClipboard(hex)} 
-              whileHover={{ scale: 1.2 }} 
-              transition={{ type: "spring", stiffness: 400, damping: 10 }} 
+            <motion.div
+              key={i}
+              style={{ backgroundColor: hex, cursor: "pointer" }}
+              className="w-4 h-4 rounded"
+              title={hex}
+              onClick={() => copyToClipboard(hex)}
+              whileHover={{ scale: 1.2 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
             />
           );
         })}
-        <Button 
-          variant="link" 
-          size="sm" 
-          onClick={() => copyToClipboard(carColors)} 
+        <Button
+          variant="link"
+          size="sm"
+          onClick={() => copyToClipboard(carColors)}
           className="text-blue-400 font-mono text-xs truncate p-0 relative"
         >
           <Copy className="w-3 h-3" />
@@ -177,9 +178,9 @@ const StatsViewer = () => {
 
   const displayRecording = (rec: string | null) =>
     rec ? (
-      <Button 
-        variant="link" 
-        className="text-blue-400 font-mono text-sm truncate p-0 relative" 
+      <Button
+        variant="link"
+        className="text-blue-400 font-mono text-sm truncate p-0 relative"
         onClick={() => { if (rec) { copyToClipboard(rec); } }}
       >
         <span className="flex items-center gap-1">
@@ -246,17 +247,26 @@ const StatsViewer = () => {
                 </div>
                 <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg">
                   <CardHeader>
-                    <CardTitle className="text-2xl sm:text-3xl font-bold text-purple-400 flex items-center justify-center">
+                    <CardTitle className="text-2xl sm:text-3xl font-bold text-purple-400 text-center">
                       {userData.name}
-                      <span className="text-lg ml-2 text-gray-300">
-                        (Rank: {userData.rank || "N/A"})
-                      </span>
                     </CardTitle>
                     <CardDescription className="text-xl text-blue-400 text-center">
                       {formatTime(userData.frames)}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    <p>
+                      <span className="font-semibold text-gray-300">
+                        Rank:
+                      </span>{" "}
+                      {userData.rank || "N/A"}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-gray-300">
+                        Top:
+                      </span>{" "}
+                      {userData.percent ? userData.percent.toFixed(4) : "N/A"}%
+                    </p>
                     <p>
                       <span className="font-semibold text-gray-300">
                         User ID:
@@ -327,12 +337,18 @@ const StatsViewer = () => {
                       const isUserEntry = entry.userId === userId;
                       return (
                         <div key={entry.id} className={cn("p-4 rounded-lg bg-gray-800/50 border border-gray-700", isUserEntry && "border-2 border-purple-500/50", "overflow-hidden")}>
-                          <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 items-center">
+                          <div className="grid grid-cols-1 sm:grid-cols-7 gap-4 items-center">
                             <div>
                               <span className="font-semibold text-gray-300">
                                 Rank:
                               </span>{" "}
                               {entry.rank}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-300">
+                                Top:
+                              </span>{" "}
+                              {entry.percent ? entry.percent.toFixed(4) : "N/A"}%
                             </div>
                             <div>
                               <span className="font-semibold text-gray-300">
