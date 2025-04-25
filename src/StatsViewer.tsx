@@ -253,9 +253,9 @@ const StatsViewer = () => {
 
   const VerifiedStateIcon = ({ verifiedState }: { verifiedState: number }) => {
     const icons = [
-      <Circle className="w-4 h-4 text-gray-400" title="Not Verified" />,
-      <CheckCircle className="w-4 h-4 text-green-500" title="Verified" />,
-      <Circle className="w-4 h-4 text-gray-400" title="Unknown" />,
+      <Circle className="w-4 h-4 text-gray-400" />,
+      <CheckCircle className="w-4 h-4 text-green-500" />,
+      <Circle className="w-4 h-4 text-gray-400" />,
     ];
     return icons[verifiedState] || icons[2];
   };
@@ -615,7 +615,7 @@ const StatsViewer = () => {
           </div>
         )}
       </div>
-      <style jsx global>{`
+      <style>{`
         .no-scroll::-webkit-scrollbar {
           display: none;
         }
