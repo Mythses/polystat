@@ -216,7 +216,7 @@ const StatsViewer = () => {
         return icons[verifiedState] || icons[2];
     };
 
-    const displayRecording = (rec: string | null, userId?: string) => {
+    const displayRecording = (rec: string | null) => {
         const display = rec ? (
             <Button
                 variant="link"
