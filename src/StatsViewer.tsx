@@ -388,7 +388,7 @@ const StatsViewer = () => {
                   <div className="space-y-4">
                     {statsData.entries.map((entry, index) => {
                       const medal = getMedal(entry.percent ?? 0, entry.position);
-                      const posMedal = getPosMedal(entry.rank);
+                      const posMedal = getPosMedal(entry.rank[0].id);
                       let userBoxStyle = 'bg-gray-800/50 border border-gray-700';
                       let userTextStyle = '';
                       if (entry.userId === userId) {
