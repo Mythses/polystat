@@ -40,8 +40,8 @@ const getMedal = (percent: number, position: number) => {
   return null;
 };
 const getPosMedal = (position: number) => {
-  if (position === 1) return { icon: '✦', label: 'WR', color: 'gold', type: 'rank' };
-  if (position <= 5) return { icon: '✦', label: 'Podium', color: 'silver', type: 'rank' };
+  if (position === 1) return { icon: '✦', label: 'WR', color: 'black', type: 'rank' };
+  if (position <= 5) return { icon: '✦', label: 'Podium', color: 'white', type: 'rank' };
   return null;
 };
 
@@ -217,7 +217,7 @@ const StatsViewer = () => {
     return icons[verifiedState] || icons[2];
   };
 
-  const displayRecording = (rec: string | null) => {
+  const displayRecording = (rec: string | null, userId?: string) => {
     const display = rec ? (
       <Button
         variant="link"
@@ -318,11 +318,11 @@ const StatsViewer = () => {
                 <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg w-full">
                   <CardHeader>
                     <CardTitle className="text-2xl sm:text-3xl font-bold text-purple-400 text-center flex items-center justify-center gap-2 flex-wrap">
-                      {getPosMedal(userData.position) ? (
+                      {getPosMedal(userData.rank) ? (
                         <>
                           <span data-tooltip-id="statsMedal"
-                            data-tooltip-content={getPosMedal(userData.position)?.label} style={{ color: getPosMedal(userData.position)?.color }}>
-                            {getPosMedal(userData.position)?.icon}
+                            data-tooltip-content={getPosMedal(userData.rank)?.label} style={{ color: getPosMedal(userData.rank)?.color }}>
+                            {getPosMedal(userData.rank)?.icon}
                           </span>
                         </>
                       ) : null}
@@ -347,14 +347,14 @@ const StatsViewer = () => {
                       <p><span className="font-semibold text-gray-300">Top:</span> {userData.percent ? userData.percent.toFixed(4) : 'N/A'}%</p>
                       <p><span className="font-semibold text-gray-300">User ID:</span> {userData.userId}</p>
                       <p><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(userData.carColors)}</p>
-                      <p><span className="font-semibold text-gray-300">Frames:</span> {userData.frames} ({formatTime(userData.frames)})</p>
+                      <p><span className="font-semibold text-gray-300">Frames:</span> <span className="text-purple-400">{userData.frames} ({formatTime(userData.frames)})</span></p>
                       <p className="flex items-center gap-1"><span className="font-semibold text-gray-300">Verified:</span><VerifiedStateIcon verifiedState={userData.verifiedState} /></p>
                     </div>
                     <div className="space-y-2">
                       <p className="font-semibold text-gray-300">Recording:</p>
                       <Card className="bg-gray-800/50 border-gray-700 w-full">
                         <CardContent className="p-4 overflow-x-auto no-scroll">
-                          {recordingData && recordingData[0] ? displayRecording(recordingData[0].recording) : displayRecording(null)}
+                          {recordingData && recordingData[0] ? displayRecording(recordingData[0].recording, userData.userId) : displayRecording(null)}
                         </CardContent>
                       </Card>
                     </div>
@@ -389,29 +389,49 @@ const StatsViewer = () => {
                     {statsData.entries.map((entry, index) => {
                       const medal = getMedal(entry.percent ?? 0, entry.position);
                       const posMedal = getPosMedal(entry.rank);
+                      let userBoxStyle = 'bg-gray-800/50 border border-gray-700';
+                      let userTextStyle = '';
+                      if (entry.userId === userId) {
+                         if (posMedal) {
+                          userBoxStyle = `bg-[${posMedal.color}]/20 border-2 border-[${posMedal.color}]/50`;
+                          userTextStyle = `text-[${posMedal.color}]`;
+                        } else if (medal) {
+                          userBoxStyle = `bg-[${medal.color}]/20 border-2 border-[${medal.color}]/50`;
+                          userTextStyle = `text-[${medal.color}]`;
+                        }
+                        else {
+                          userBoxStyle = 'bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-2 border-purple-500/50';
+                          userTextStyle = 'text-white';
+                        }
+                      }
+
                       return (
-                        <div key={entry.id} className={cn('p-4 rounded-lg bg-gray-800/50 border border-gray-700', entry.userId === userId && 'border-2 border-purple-500/50', 'overflow-hidden')}>
+                        <div key={entry.id} className={cn(
+                          'p-4 rounded-lg',
+                          userBoxStyle,
+                          'overflow-hidden'
+                        )}>
                           <div className="grid grid-cols-1 gap-2">
                             <div className="flex items-center gap-1">
                               <span className="font-semibold text-gray-300">Rank:</span>
                               {posMedal ? (
                                 <span data-tooltip-id={`posMedal-${entry.id}`} data-tooltip-content={posMedal?.label} style={{ color: posMedal?.color }}>{posMedal.icon}</span>
                               ) : null}
-                              {entry.rank}
+                              <span className={userTextStyle}>{entry.rank}</span>
                             </div>
-                            <div><span className="font-semibold text-gray-300">Top:</span> {entry.percent ? entry.percent.toFixed(4) : 'N/A'}%
+                            <div><span className="font-semibold text-gray-300">Top:</span> <span className={userTextStyle}>{entry.percent ? entry.percent.toFixed(4) : 'N/A'}%</span>
                               {medal && medal.type === 'mineral' ? (
                                 <span className="ml-1" data-tooltip-id={`medal-${entry.id}`} data-tooltip-content={medal?.label} style={{ color: medal?.color }}>{medal ? medal.icon : ''}</span>
                               ) : null}
                               <Tooltip id={`medal-${entry.id}`} className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: medal?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
                               <Tooltip id={`posMedal-${entry.id}`} className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: posMedal?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
                             </div>
-                            <div><span className="font-semibold text-gray-300 truncate">Name:</span> <span className='truncate'>{entry.name}</span></div>
-                            <div><span className="font-semibold text-gray-300">User ID:</span> {entry.userId}</div>
+                            <div><span className="font-semibold text-gray-300 truncate">Name:</span> <span className={userTextStyle + ' truncate'}>{entry.name}</span></div>
+                            <div><span className="font-semibold text-gray-300">User ID:</span> <span className={userTextStyle}>{entry.userId}</span></div>
                             <div><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(entry.carColors)}</div>
-                            <div><span className="font-semibold text-gray-300">Frames:</span> {entry.frames} ({formatTime(entry.frames)})</div>
+                            <div><span className="font-semibold text-gray-300">Frames:</span> <span className={userTextStyle}>{entry.frames}</span> (<span className={userTextStyle}>{formatTime(entry.frames)}</span>)</div>
                             <div className="flex items-center gap-1"><span className="font-semibold text-gray-300">Verified:</span><VerifiedStateIcon verifiedState={entry.verifiedState} /></div>
-                            <div className="overflow-x-auto no-scroll"><span className="font-semibold text-gray-300">Recording:</span>{recordingData && recordingData[index] ? displayRecording(recordingData[index]?.recording || null) : displayRecording(null)}</div>
+                            <div className="overflow-x-auto no-scroll"><span className="font-semibold text-gray-300">Recording:</span>{recordingData && recordingData[index] ? displayRecording(recordingData[index]?.recording || null, entry.userId) : displayRecording(null)}</div>
                           </div>
                         </div>
                       );
@@ -479,4 +499,3 @@ const StatsViewer = () => {
 };
 
 export default StatsViewer;
-
