@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Search, Trophy, User, Timer, Circle, CheckCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, File, Copy } from 'lucide-react';
+import { Search, Trophy, User, Circle, CheckCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, File, Copy, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -31,7 +31,8 @@ const CopyPopup = ({ text }: { text: string }) => (
   </motion.div>
 );
 
-const getMedal = (percent: number, position: number) => {
+const getMedal = (percent: number | undefined, position: number | undefined) => {
+  if (percent === undefined || position === undefined) return null;
   if (percent <= 0.005) return { icon: '♦', label: 'Diamond', color: 'cyan', type: 'mineral' };
   if (percent <= 0.5) return { icon: '♦', label: 'Emerald', color: 'green', type: 'mineral' };
   if (percent <= 5) return { icon: '♦', label: 'Gold', color: 'gold', type: 'mineral' };
@@ -39,7 +40,8 @@ const getMedal = (percent: number, position: number) => {
   if (percent <= 25) return { icon: '♦', label: 'Bronze', color: 'bronze', type: 'mineral' };
   return null;
 };
-const getPosMedal = (position: number) => {
+const getPosMedal = (position: number | undefined) => {
+  if (position === undefined) return null;
   if (position === 1) return { icon: '✦', label: 'WR', color: 'gold', type: 'rank' };
   if (position <= 5) return { icon: '✦', label: 'Podium', color: 'white', type: 'rank' };
   return null;
@@ -327,13 +329,13 @@ const StatsViewer = () => {
                         </>
                       ) : null}
                       <span className='truncate'>{userData.name}</span>
-                      {getMedal(userData.percent ?? 0, userData.position) ? (
+                      {getMedal(userData.percent, userData.position) ? (
                         <>
                           <span data-tooltip-id="statsMedal"
-                            data-tooltip-content={getMedal(userData.percent ?? 0, userData.position)?.label} style={{ color: getMedal(userData.percent ?? 0, userData.position)?.color }}>
-                            {getMedal(userData.percent ?? 0, userData.position)?.icon}
+                            data-tooltip-content={getMedal(userData.percent, userData.position)?.label} style={{ color: getMedal(userData.percent, userData.position)?.color }}>
+                            {getMedal(userData.percent, userData.position)?.icon}
                           </span>
-                           <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getMedal(userData.percent ?? 0, userData.position)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
+                           <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getMedal(userData.percent, userData.position)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
                         </>
                       ) : null}
                     </CardTitle>
@@ -387,7 +389,7 @@ const StatsViewer = () => {
                 <CardContent>
                   <div className="space-y-4">
                     {statsData.entries.map((entry, index) => {
-                      const medal = getMedal(entry.percent ?? 0, entry.position);
+                      const medal = getMedal(entry.percent, entry.position);
                       const posMedal = getPosMedal(entry.rank);
                       let userBoxStyle = 'bg-gray-800/50 border border-gray-700';
                       let userTextStyle = '';
@@ -441,7 +443,7 @@ const StatsViewer = () => {
                     <Button variant="outline" size="icon" onClick={() => handlePageChange(1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
                       <ChevronsLeft className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 ||loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-gray-300">Page {currentPage} of {totalPagesRef.current}</span>
@@ -499,5 +501,3 @@ const StatsViewer = () => {
 };
 
 export default StatsViewer;
-
-a
