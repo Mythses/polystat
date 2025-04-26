@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 
-interface LeaderboardEntry { id: number; name: string; carColors: string; frames: number; verifiedState: number; position: number; rank?: number; percent?: number; }
+interface LeaderboardEntry { id: number; userId: string; name: string; carColors: string; frames: number; verifiedState: number; position: number; rank?: number; percent?: number; }
 interface LeaderboardData { total: number; entries: LeaderboardEntry[]; userEntry: LeaderboardEntry | null; }
 interface RecordingData { recording: string; frames: number; verifiedState: number; carColors: string; }
 
