@@ -359,7 +359,7 @@ const StatsViewer = () => {
                                             <p className="font-semibold text-gray-300">Recording:</p>
                                             <Card className="bg-gray-800/50 border-gray-700 w-full">
                                                 <CardContent className="p-4 overflow-x-auto no-scroll">
-                                                    {recordingData && recordingData[0] ? displayRecording(recordingData[0].recording, userData.userId) : displayRecording(null)}
+                                                    {recordingData && recordingData[0] ? displayRecording(recordingData[0].recording) : displayRecording(null)}
                                                 </CardContent>
                                             </Card>
                                         </div>
@@ -436,7 +436,7 @@ const StatsViewer = () => {
                                                         <div><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(entry.carColors)}</div>
                                                         <div><span className="font-semibold text-gray-300">Frames:</span> <span className={userTextStyle}>{entry.frames}</span> (<span className={userTextStyle}>{formatTime(entry.frames)}</span>)</div>
                                                         <div className="flex items-center gap-1"><span className="font-semibold text-gray-300">Verified:</span><VerifiedStateIcon verifiedState={entry.verifiedState} /></div>
-                                                        <div className="overflow-x-auto no-scroll"><span className="font-semibold text-gray-300">Recording:</span>{recordingData && recordingData[index] ? displayRecording(recordingData[index]?.recording || null, entry.userId) : displayRecording(null)}</div>
+                                                        <div className="overflow-x-auto no-scroll"><span className="font-semibold text-gray-300">Recording:</span>{recordingData && recordingData[index] ? displayRecording(recordingData[index]?.recording || null) : displayRecording(null)}</div>
                                                     </div>
                                                 </div>
                                             );
