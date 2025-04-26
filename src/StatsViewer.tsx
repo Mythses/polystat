@@ -3,12 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Search, Trophy, User, Timer, Circle, CheckCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, File, Copy } from 'lucide-react';
+import { Search, Trophy, User, Circle, CheckCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, File, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 import { Tooltip } from 'react-tooltip';
+import { AlertCircle } from 'lucide-react';
 
 interface LeaderboardEntry { id: number; userId: string; name: string; carColors: string; frames: number; verifiedState: number; position: number; rank?: number; percent?: number; }
 interface LeaderboardData { total: number; entries: LeaderboardEntry[]; userEntry: LeaderboardEntry | null; }
@@ -31,7 +32,8 @@ const CopyPopup = ({ text }: { text: string }) => (
   </motion.div>
 );
 
-const getMedal = (percent: number, position: number) => {
+const getMedal = (percent: number | undefined) => {
+  if (percent === undefined) return null;
   if (percent <= 0.005) return { icon: '♦', label: 'Diamond', color: 'cyan', type: 'mineral' };
   if (percent <= 0.5) return { icon: '♦', label: 'Emerald', color: 'green', type: 'mineral' };
   if (percent <= 5) return { icon: '♦', label: 'Gold', color: 'gold', type: 'mineral' };
@@ -39,12 +41,13 @@ const getMedal = (percent: number, position: number) => {
   if (percent <= 25) return { icon: '♦', label: 'Bronze', color: 'bronze', type: 'mineral' };
   return null;
 };
-const getPosMedal = (position: number) => {
+
+const getPosMedal = (position: number | undefined) => {
+  if (position === undefined) return null;
   if (position === 1) return { icon: '✦', label: 'WR', color: 'black', type: 'rank' };
   if (position <= 5) return { icon: '✦', label: 'Podium', color: 'white', type: 'rank' };
   return null;
 };
-
 
 const StatsViewer = () => {
   const [userId, setUserId] = useState('');
@@ -217,7 +220,7 @@ const StatsViewer = () => {
     return icons[verifiedState] || icons[2];
   };
 
-  const displayRecording = (rec: string | null, userId?: string) => {
+  const displayRecording = (rec: string | null) => {
     const display = rec ? (
       <Button
         variant="link"
@@ -327,13 +330,13 @@ const StatsViewer = () => {
                         </>
                       ) : null}
                       <span className='truncate'>{userData.name}</span>
-                      {getMedal(userData.percent ?? 0, userData.position) ? (
+                      {getMedal(userData.percent ?? 0) ? (
                         <>
                           <span data-tooltip-id="statsMedal"
-                            data-tooltip-content={getMedal(userData.percent ?? 0, userData.position)?.label} style={{ color: getMedal(userData.percent ?? 0, userData.position)?.color }}>
-                            {getMedal(userData.percent ?? 0, userData.position)?.icon}
+                            data-tooltip-content={getMedal(userData.percent ?? 0)?.label} style={{ color: getMedal(userData.percent ?? 0)?.color }}>
+                            {getMedal(userData.percent ?? 0)?.icon}
                           </span>
-                           <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getMedal(userData.percent ?? 0, userData.position)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
+                           <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getMedal(userData.percent ?? 0)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
                         </>
                       ) : null}
                     </CardTitle>
@@ -354,7 +357,7 @@ const StatsViewer = () => {
                       <p className="font-semibold text-gray-300">Recording:</p>
                       <Card className="bg-gray-800/50 border-gray-700 w-full">
                         <CardContent className="p-4 overflow-x-auto no-scroll">
-                          {recordingData && recordingData[0] ? displayRecording(recordingData[0].recording, userData.userId) : displayRecording(null)}
+                          {recordingData && recordingData[0] ? displayRecording(recordingData[0].recording) : displayRecording(null)}
                         </CardContent>
                       </Card>
                     </div>
@@ -387,8 +390,8 @@ const StatsViewer = () => {
                 <CardContent>
                   <div className="space-y-4">
                     {statsData.entries.map((entry, index) => {
-                      const medal = getMedal(entry.percent ?? 0, entry.position);
-                      const posMedal = getPosMedal(entry.rank[0].id);
+                      const medal = getMedal(entry.percent ?? 0);
+                      const posMedal = getPosMedal(entry.rank);
                       let userBoxStyle = 'bg-gray-800/50 border border-gray-700';
                       let userTextStyle = '';
                       if (entry.userId === userId) {
@@ -431,7 +434,7 @@ const StatsViewer = () => {
                             <div><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(entry.carColors)}</div>
                             <div><span className="font-semibold text-gray-300">Frames:</span> <span className={userTextStyle}>{entry.frames}</span> (<span className={userTextStyle}>{formatTime(entry.frames)}</span>)</div>
                             <div className="flex items-center gap-1"><span className="font-semibold text-gray-300">Verified:</span><VerifiedStateIcon verifiedState={entry.verifiedState} /></div>
-                            <div className="overflow-x-auto no-scroll"><span className="font-semibold text-gray-300">Recording:</span>{recordingData && recordingData[index] ? displayRecording(recordingData[index]?.recording || null, entry.userId) : displayRecording(null)}</div>
+                            <div className="overflow-x-auto no-scroll"><span className="font-semibold text-gray-300">Recording:</span>{recordingData && recordingData[index] ? displayRecording(recordingData[index]?.recording || null) : displayRecording(null)}</div>
                           </div>
                         </div>
                       );
