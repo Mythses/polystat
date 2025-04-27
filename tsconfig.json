@@ -13,7 +13,7 @@
       "@/*": ["./src/*"]
     },
     "outDir": "dist",
-    "noEmit": true // Vite handles the final output, so tsc doesn't need to emit JS
+    "noEmit": true
   },
   "include": ["src"],
   "exclude": ["node_modules"]
