@@ -12,11 +12,9 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "outDir": "dist"
+    "outDir": "dist",
+    "noEmit": true // Vite handles the final output, so tsc doesn't need to emit JS
   },
   "include": ["src"],
-  "exclude": ["node_modules"],
-  "references": [
-    { "path": "./tsconfig.node.json" }
-  ]
+  "exclude": ["node_modules"]
 }
