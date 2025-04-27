@@ -323,10 +323,11 @@ const StatsViewer = () => {
                     <CardTitle className="text-2xl sm:text-3xl font-bold text-purple-400 text-center flex items-center justify-center gap-2 flex-wrap">
                       {getPosMedal(userData.rank) ? (
                         <>
-                          <span data-tooltip-id="statsMedal"
+                          <span data-tooltip-id="statsPosMedal"
                             data-tooltip-content={getPosMedal(userData.rank)?.label} style={{ color: getPosMedal(userData.rank)?.color }}>
                             {getPosMedal(userData.rank)?.icon}
                           </span>
+                          <Tooltip id="statsPosMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getPosMedal(userData.percent ?? 0)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
                         </>
                       ) : null}
                       <span className='truncate'>{userData.name}</span>
@@ -336,7 +337,7 @@ const StatsViewer = () => {
                             data-tooltip-content={getMedal(userData.percent ?? 0)?.label} style={{ color: getMedal(userData.percent ?? 0)?.color }}>
                             {getMedal(userData.percent ?? 0)?.icon}
                           </span>
-                           <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getMedal(userData.percent ?? 0)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
+                          <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getMedal(userData.percent ?? 0)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
                         </>
                       ) : null}
                     </CardTitle>
@@ -395,7 +396,7 @@ const StatsViewer = () => {
                       let userBoxStyle = 'bg-gray-800/50 border border-gray-700';
                       let userTextStyle = '';
                       if (entry.userId === userId) {
-                         if (posMedal) {
+                        if (posMedal) {
                           userBoxStyle = `bg-[${posMedal.color}]/20 border-2 border-[${posMedal.color}]/50`;
                           userTextStyle = `text-[${posMedal.color}]`;
                         } else if (medal) {
@@ -444,7 +445,7 @@ const StatsViewer = () => {
                     <Button variant="outline" size="icon" onClick={() => handlePageChange(1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
                       <ChevronsLeft className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 ||loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-gray-300">Page {currentPage} of {totalPagesRef.current}</span>
