@@ -9,7 +9,14 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 import { Tooltip } from 'react-tooltip';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, TriangleAlert } from 'lucide-react'; // Import TriangleAlert
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface LeaderboardEntry { id: number; userId: string; name: string; carColors: string; frames: number; verifiedState: number; position: number; rank?: number; percent?: number; }
 interface LeaderboardData { total: number; entries: LeaderboardEntry[]; userEntry: LeaderboardEntry | null; }
@@ -20,6 +27,7 @@ const RECORDING_API_BASE_URL = 'https://vps.kodub.com:43273/recordings';
 const PROXY_URL = 'https://hi-rewis.maxicode.workers.dev/?url=';
 const VERSION = '0.5.0';
 const AMOUNT = 10;
+const INPUT_DEBOUNCE_DELAY = 500; // milliseconds
 
 const CopyPopup = ({ text }: { text: string }) => (
   <motion.div
@@ -31,6 +39,15 @@ const CopyPopup = ({ text }: { text: string }) => (
     Copied: {text}
   </motion.div>
 );
+
+// Function to calculate SHA-256 hash
+async function sha256(message: string): Promise<string> {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
 
 const getMedal = (percent: number | undefined) => {
   if (percent === undefined) return null;
@@ -50,7 +67,9 @@ const getPosMedal = (position: number | undefined) => {
 };
 
 const StatsViewer = () => {
-  const [userId, setUserId] = useState('');
+  const [userInput, setUserInput] = useState('');
+  const [userInputType, setUserInputType] = useState<'userid' | 'usertoken' | 'rank'>('userid');
+  const [userId, setUserId] = useState(''); // This state will now primarily store the *resolved* user ID for display/pagination
   const [trackId, setTrackId] = useState('');
   const [statsData, setStatsData] = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -64,6 +83,7 @@ const StatsViewer = () => {
   const [recordingData, setRecordingData] = useState<(RecordingData | null)[] | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialFetchDoneRef = useRef(false); // Flag to prevent initial fetch on mount
 
   const formatTime = (frames: number) => {
     const h = Math.floor(frames / 3600000);
@@ -73,20 +93,18 @@ const StatsViewer = () => {
     return `${h > 0 ? `${h}h  ` : ''}${m > 0 || h > 0 ? `${m}m  ` : ''}${s}.${ms.toString().padStart(3, '0')}s`;
   };
 
-  const fetchStats = useCallback(async (page = 1) => {
-    if (!userId) { setError('Please enter a User ID.'); return; }
-    if (!trackId) { setError('Please enter a Track ID.'); return; }
-
+  // Function to fetch leaderboard data for a specific page
+  const fetchLeaderboardPage = useCallback(async (page = 1, targetTrackId: string, targetOnlyVerified: boolean, targetUserId: string | null = null) => {
     setLoading(true);
     setError(null);
-    setStatsData(null);
     setCurrentPage(page);
-    setUserData(null);
-    setRecordingData(null);
+    setStatsData(null); // Clear previous leaderboard data
+    setRecordingData(null); // Clear previous recording data
 
     try {
       const skip = (page - 1) * AMOUNT;
-      const leaderboardUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${trackId}&skip=${skip}&amount=${AMOUNT}&onlyVerified=${onlyVerified}&userTokenHash=${userId}`)}`;
+      // Include userTokenHash if available, but this fetch is primarily for the list
+      const leaderboardUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${targetTrackId}&skip=${skip}&amount=${AMOUNT}&onlyVerified=${targetOnlyVerified}${targetUserId ? `&userTokenHash=${targetUserId}` : ''}`)}`;
       const response = await fetch(leaderboardUrl);
       if (!response.ok) {
         throw new Error(`Failed to fetch leaderboard data: ${response.status}`);
@@ -94,42 +112,7 @@ const StatsViewer = () => {
       const data: LeaderboardData = await response.json();
       totalPagesRef.current = Math.ceil(data.total / AMOUNT);
 
-      let userEntry = data.userEntry;
-
-      if (userEntry) {
-        const userSkip = Math.max(0, Math.floor((userEntry.position - 10 - 1) / AMOUNT) * AMOUNT);
-        const userAmount = 20;
-        const userUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${trackId}&skip=${userSkip}&amount=${userAmount}&onlyVerified=${onlyVerified}&userTokenHash=${userId}`)}`;
-        const userResponse = await fetch(userUrl);
-        if (!userResponse.ok) {
-          throw new Error(`Failed to fetch user data: ${userResponse.status}`);
-        }
-        const uData: LeaderboardData = await userResponse.json();
-        const foundUser = uData.entries.find((e) => e.userId === userId);
-        if (foundUser) {
-          setUserData({ ...foundUser, rank: uData.userEntry?.position || 0, percent: ((uData.userEntry?.position || 0) / data.total) * 100 });
-        }
-        setUserPage(Math.ceil(userEntry.position / AMOUNT));
-      }
-
-      const enrichedEntries = await Promise.all(
-        data.entries.map(async (entry) => {
-          const entryUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${trackId}&skip=0&amount=1&onlyVerified=${onlyVerified}&userTokenHash=${entry.userId}`)}`;
-          const entryResponse = await fetch(entryUrl);
-          if (!entryResponse.ok) {
-            console.warn(`Failed to fetch entry data for user ${entry.userId}: ${entryResponse.status}`);
-            return { ...entry, rank: 0, percent: 0 }; // Return entry with default values
-          }
-          const result = await entryResponse.json();
-          return {
-            ...entry,
-            rank: result.userEntry?.position || 0,
-            percent: ((result.userEntry?.position || 0) / data.total) * 100
-          };
-        })
-      );
-      data.entries = enrichedEntries;
-
+      // Fetch recording data for entries on this page
       if (data.entries.length > 0) {
         const recordingIds = data.entries.map((entry) => entry.id).join(',');
         const recordingUrl = `${PROXY_URL}${encodeURIComponent(RECORDING_API_BASE_URL + `?version=${VERSION}&recordingIds=${recordingIds}`)}`;
@@ -139,28 +122,238 @@ const StatsViewer = () => {
         setRecordingData([]);
       }
 
-      setStatsData(data);
+      setStatsData(data); // Set the fetched leaderboard data
+
     } catch (err: any) {
-      setError(err.message || 'An error occurred while fetching data.'); // Ensure err is always an object
+      setError(err.message || 'An error occurred while fetching leaderboard data.');
+      setStatsData(null);
+      setRecordingData(null);
     } finally {
-      setLoading(false);
+      // Loading is handled by the overall processUserInputAndFetchData
+      // setLoading(false); // Remove this here
     }
-  }, [userId, trackId, onlyVerified]);
+  }, [AMOUNT, PROXY_URL, API_BASE_URL, VERSION, RECORDING_API_BASE_URL]); // Dependencies for fetchLeaderboardPage
+
+  // Function to fetch specific user data based on resolved userId and trackId
+  const fetchAndSetUserData = useCallback(async (targetUserId: string, targetTrackId: string, targetOnlyVerified: boolean) => {
+       setUserData(null); // Clear previous user data
+       setUserPage(null); // Clear user page
+
+       if (!targetUserId || !targetTrackId) {
+           setUserData(null);
+           setUserPage(null);
+           return null; // Return null if input is invalid
+       }
+
+       try {
+           // First, fetch just the userEntry to get the position and total count
+           const initialUserFetchUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${targetTrackId}&skip=0&amount=1&onlyVerified=${targetOnlyVerified}&userTokenHash=${targetUserId}`)}`;
+           const initialUserResponse = await fetch(initialUserFetchUrl);
+
+           if (!initialUserResponse.ok) {
+               console.warn(`Initial user fetch failed: ${initialUserResponse.status}`);
+               setUserData(null);
+               setUserPage(null);
+               return null;
+           }
+
+           const initialUserData: LeaderboardData = await initialUserResponse.json();
+
+           if (initialUserData.userEntry && initialUserData.userEntry.position !== undefined) {
+               const userPosition = initialUserData.userEntry.position;
+               const totalEntries = initialUserData.total;
+
+               // Now, fetch the specific entry using the determined position
+               const specificUserSkip = Math.max(0, userPosition - 1); // Skip to the entry before the user's rank
+               const specificUserFetchUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${targetTrackId}&skip=${specificUserSkip}&amount=1&onlyVerified=${targetOnlyVerified}&userTokenHash=${targetUserId}`)}`;
+               const specificUserResponse = await fetch(specificUserFetchUrl);
+
+               if (!specificUserResponse.ok) {
+                   console.warn(`Specific user fetch failed: ${specificUserResponse.status}`);
+                   setUserData(null);
+                   setUserPage(null);
+                   return null;
+               }
+
+               const specificUserData: LeaderboardData = await specificUserResponse.json();
+
+               if (specificUserData.entries && specificUserData.entries.length > 0) {
+                   const userEntry = specificUserData.entries[0]; // The user's entry should be the first (and only) one
+                    const finalUserEntry: LeaderboardEntry = {
+                        id: userEntry.id,
+                        userId: userEntry.userId || 'ID Unavailable',
+                        name: userEntry.name || 'Name Unavailable',
+                        carColors: userEntry.carColors || '',
+                        frames: userEntry.frames,
+                        verifiedState: userEntry.verifiedState,
+                        position: userEntry.position,
+                        rank: userEntry.position || 0,
+                        percent: ((userEntry.position || 0) / totalEntries) * 100 // Use the total from the initial fetch for percentage
+                    };
+                    setUserData(finalUserEntry);
+                    setUserPage(Math.ceil(finalUserEntry.position / AMOUNT));
+                    return finalUserEntry; // Return the fetched user data
+               } else {
+                   console.warn('Specific user fetch returned no entries.');
+                   setUserData(null);
+                   setUserPage(null);
+                   return null;
+               }
+
+           } else {
+               console.warn('Initial user fetch did not return userEntry with position.');
+               setUserData(null);
+               setUserPage(null);
+               return null;
+           }
+
+       } catch (err: any) {
+           console.error('Error in fetchAndSetUserData:', err);
+           setUserData(null);
+           setUserPage(null);
+           return null;
+       }
+   }, [AMOUNT, PROXY_URL, API_BASE_URL, VERSION]); // Dependencies for fetchAndSetUserData
 
 
-  useEffect(() => { if (trackId && userId) fetchStats(1); }, [trackId, userId, fetchStats]);
+  // Combined function to process input, fetch user data, and then fetch leaderboard data
+  const processUserInputAndFetchData = useCallback(async () => {
+      setError(null);
+      setUserId(''); // Clear resolved userId when input changes
+      setUserData(null); // Clear user data when input changes
+      setStatsData(null); // Clear stats data when input changes
+      setRecordingData(null); // Clear recording data when input changes
 
-  const handlePageChange = (newPage: number) => fetchStats(newPage);
+
+      if (!userInput || !trackId) {
+         if (!trackId && userInput) {
+             setError('Please enter a Track ID.');
+         }
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true); // Set loading true when processing starts
+
+      let targetUserId = '';
+      let processingError: string | null = null; // Use a local variable for errors during processing
+
+      if (userInputType === 'userid') {
+        targetUserId = userInput;
+      } else if (userInputType === 'usertoken') {
+        try {
+          targetUserId = await sha256(userInput);
+        } catch (e: any) {
+          processingError = 'Failed to hash user token.';
+          console.error('Hashing error:', e);
+        }
+      } else if (userInputType === 'rank') {
+        const rank = parseInt(userInput, 10);
+        if (!isNaN(rank) && rank > 0) {
+          try {
+            // Fetch the entry at rank - 1 with amount 1 to get the user ID
+            const skip = Math.max(0, rank - 1);
+            const rankLookupUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${trackId}&skip=${skip}&amount=1&onlyVerified=${onlyVerified}`)}`;
+            const response = await fetch(rankLookupUrl);
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch user by rank: ${response.status}`);
+            }
+
+            const data: LeaderboardData = await response.json();
+
+            if (data.entries && data.entries.length > 0) {
+              targetUserId = data.entries[0].userId;
+            } else {
+              processingError = `No user found at rank ${rank}.`;
+            }
+          } catch (err: any) {
+            processingError = err.message || 'An error occurred while fetching user by rank.';
+          }
+        } else {
+          processingError = 'Please enter a valid positive number for Rank.';
+        }
+      }
+
+      // If there was a processing error, set the error state and stop
+      if (processingError) {
+          setError(processingError);
+          setLoading(false);
+          return;
+      }
+
+      // If we successfully determined a targetUserId and have a trackId, proceed with fetching
+      if (targetUserId && trackId) {
+          setUserId(targetUserId); // Set the resolved userId for display/pagination
+
+          // Fetch user specific data first
+          const fetchedUserData = await fetchAndSetUserData(targetUserId, trackId, onlyVerified);
+
+          // Then fetch leaderboard data for the first page, including the targetUserId
+          // Pass the targetUserId to fetchLeaderboardPage so it can potentially highlight the user
+          fetchLeaderboardPage(1, trackId, onlyVerified, targetUserId);
+
+      } else {
+          setLoading(false);
+      }
+
+  }, [userInput, userInputType, trackId, onlyVerified, fetchAndSetUserData, fetchLeaderboardPage, PROXY_URL, API_BASE_URL, VERSION]); // Dependencies for processUserInputAndFetchData
+
+
+  // Effect to trigger the combined fetch function with debounce
+  useEffect(() => {
+    // Prevent initial fetch on component mount
+    if (!initialFetchDoneRef.current) {
+      initialFetchDoneRef.current = true;
+      setLoading(false); // Ensure loading is off initially
+      return;
+    }
+
+    const handler = setTimeout(() => {
+        processUserInputAndFetchData();
+    }, INPUT_DEBOUNCE_DELAY); // Debounce delay
+
+    // Cleanup function to clear the timeout if the component unmounts or inputs change again
+    return () => {
+        clearTimeout(handler);
+         setLoading(false); // Ensure loading is off if input changes rapidly
+    };
+
+  }, [userInput, userInputType, trackId, onlyVerified, processUserInputAndFetchData]); // Dependencies for the debounced effect
+
+
+  const handlePageChange = (newPage: number) => {
+      // Only proceed if not currently loading and we have a trackId
+      // Pass the current resolved userId to highlight it on the new page
+      if (!loading && trackId) {
+         fetchLeaderboardPage(newPage, trackId, onlyVerified, userId); // Changed back to fetchData for pagination
+      } else if (loading) {
+          setError('Already loading data. Please wait.');
+      } else {
+          setError('Please enter Track ID first.');
+      }
+  };
 
   const handleGoToPage = () => {
     const pos = parseInt(goToPosition, 10);
-    if (!isNaN(pos) && pos > 0 && pos <= totalPagesRef.current) {
-      fetchStats(Math.ceil(pos / AMOUNT));
+    // Only proceed if not currently loading, inputs are valid, and we have a trackId
+    if (!loading && trackId && !isNaN(pos) && pos > 0 && pos <= totalPagesRef.current) {
+      // Pass the current resolved userId to highlight it on the new page
+      fetchLeaderboardPage(Math.ceil(pos / AMOUNT), trackId, onlyVerified, userId); // Changed back to fetchData
       setGoToPosition('');
-    } else {
+    } else if (loading) {
+        setError('Already loading data. Please wait.');
+    } else if (!trackId) {
+        setError('Please enter Track ID first.');
+    }
+    else {
       setError('Invalid position.');
     }
   };
+
+   const inputPlaceholder = userInputType === 'userid' ? 'User ID' :
+                             userInputType === 'usertoken' ? 'User Token' :
+                             'Rank';
 
   const copyToClipboard = (text: string) => {
     if (!navigator.clipboard) {
@@ -243,6 +436,18 @@ const StatsViewer = () => {
     );
   };
 
+  // Determine if the current error suggests an input type issue
+  const showErrorSuggestion = error && (
+      error.includes("User not found") ||
+      error.includes("Could not find user data") ||
+      error.includes("No user found at rank") ||
+      error.includes("valid positive number for Rank") ||
+      error.includes("Failed to hash user token") ||
+      // Also check for generic fetch errors if inputs are present, as it could be a type issue
+      (error.includes("Failed to fetch") && (userInput || trackId))
+  );
+
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black p-4 md:p-8">
       {copiedText && <CopyPopup text={copiedText} />}
@@ -251,13 +456,23 @@ const StatsViewer = () => {
           Polystats
         </h1>
         <div className="flex flex-col sm:flex-row gap-4 items-center">
+           <Select onValueChange={(value: 'userid' | 'usertoken' | 'rank') => setUserInputType(value)} defaultValue={userInputType}>
+               <SelectTrigger className="w-[180px] bg-black/20 text-white border-purple-500/30 focus:ring-purple-500/50">
+                   <SelectValue placeholder="Select Input Type" />
+               </SelectTrigger>
+               <SelectContent className="bg-gray-800 text-white border-purple-500/30">
+                   <SelectItem value="userid">User ID</SelectItem>
+                   <SelectItem value="usertoken">User Token</SelectItem>
+                   <SelectItem value="rank">Rank</SelectItem>
+               </SelectContent>
+           </Select>
+
           <Input
-            type="text"
-            placeholder="User ID"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
+            type={userInputType === 'rank' ? 'number' : 'text'}
+            placeholder={inputPlaceholder}
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
             className="flex-1 bg-black/20 text-white border-purple-500/30 placeholder:text-gray-500 focus:ring-purple-500/50"
-            onKeyDown={(e) => { if (e.key === 'Enter') fetchStats(1); }}
           />
           <Input
             type="text"
@@ -265,7 +480,6 @@ const StatsViewer = () => {
             value={trackId}
             onChange={(e) => setTrackId(e.target.value)}
             className="flex-1 bg-black/20 text-white border-purple-500/30 placeholder:text-gray-500 focus:ring-purple-500/50"
-            onKeyDown={(e) => { if (e.key === 'Enter') fetchStats(1); }}
           />
           <div className="flex items-center space-x-2">
             <Switch
@@ -277,10 +491,11 @@ const StatsViewer = () => {
               Only Verified
             </Label>
           </div>
+          {/* The search button now triggers the combined processing and fetching */}
           <Button
-            onClick={() => fetchStats(1)}
-            disabled={loading}
-            className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-3 rounded-full transition-all duration-300 hover:from-purple-600 hover:to-blue-600 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            onClick={processUserInputAndFetchData}
+            disabled={loading || !userInput || !trackId} // Disable if loading or inputs are empty
+            className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-3 rounded-full transition-all duration-300 hover:from-purple-600 hover:to-blue-600 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-0"
           >
             {loading ? (
               <>
@@ -307,6 +522,15 @@ const StatsViewer = () => {
           </Alert>
         )}
 
+        {/* Conditional suggestion below the error message with box and border */}
+        {showErrorSuggestion && (
+             <div className="flex items-center justify-center gap-2 text-yellow-400 text-sm text-center mt-2 p-3 border border-yellow-400 rounded-md bg-yellow-400/20"> {/* Increased opacity */}
+                 <TriangleAlert className="h-4 w-4" /> {/* Changed icon */}
+                 <span>Suggestion: Please double-check the input value and ensure the correct Input Type is selected (User ID, User Token, or Rank).</span>
+             </div>
+        )}
+
+
         {statsData && statsData.entries && (
           <div className="space-y-4">
             {userData ? (
@@ -330,7 +554,7 @@ const StatsViewer = () => {
                           <Tooltip id="statsPosMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getPosMedal(userData.percent ?? 0)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
                         </>
                       ) : null}
-                      <span className='truncate'>{userData.name}</span>
+                      <span className='truncate'>{userData.name || 'Name Unavailable'}</span> {/* Displaying the user's name here with fallback */}
                       {getMedal(userData.percent ?? 0) ? (
                         <>
                           <span data-tooltip-id="statsMedal"
@@ -349,8 +573,8 @@ const StatsViewer = () => {
                     <div className="grid grid-cols-1 gap-4">
                       <p><span className="font-semibold text-gray-300">Rank:</span> {userData.rank || 'N/A'}</p>
                       <p><span className="font-semibold text-gray-300">Top:</span> {userData.percent ? userData.percent.toFixed(4) : 'N/A'}%</p>
-                      <p><span className="font-semibold text-gray-300">User ID:</span> {userData.userId}</p>
-                      <p><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(userData.carColors)}</p>
+                      <p><span className="font-semibold text-gray-300">User ID:</span> {userData.userId || 'ID Unavailable'}</p> {/* Added fallback for User ID */}
+                      <p><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(userData.carColors || '')}</p> {/* Added fallback for Car Colors */}
                       <p><span className="font-semibold text-gray-300">Frames:</span> <span className="text-purple-400">{userData.frames} ({formatTime(userData.frames)})</span></p>
                       <p className="flex items-center gap-1"><span className="font-semibold text-gray-300">Verified:</span><VerifiedStateIcon verifiedState={userData.verifiedState} /></p>
                     </div>
@@ -442,24 +666,24 @@ const StatsViewer = () => {
                     })}
                   </div>
                   <div className="flex items-center justify-center gap-2 mt-4">
-                    <Button variant="outline" size="icon" onClick={() => handlePageChange(1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
                       <ChevronsLeft className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-gray-300">Page {currentPage} of {totalPagesRef.current}</span>
-                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
                       <ChevronRight className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => handlePageChange(Math.min(currentPage + 10, totalPagesRef.current))} disabled={currentPage + 10 >= totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
-                      +{10}
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(Math.min(currentPage + 10, totalPagesRef.current))} disabled={currentPage + 10 > totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                        +{10}
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => handlePageChange(totalPagesRef.current)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50">
+                    <Button variant="outline" size="icon" onClick={() => handlePageChange(totalPagesRef.current)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
                       <ChevronsRight className="h-4 w-4" />
                     </Button>
                     {userPage && (
-                      <Button variant="outline" onClick={() => handlePageChange(userPage)} disabled={loading} className="bg-purple-900/50 text-white hover:bg-purple-800/50">
+                      <Button variant="outline" onClick={() => handlePageChange(userPage)} disabled={loading} className="bg-purple-900/50 text-white hover:bg-purple-800/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
                         Go to Your Page ({userPage})
                       </Button>
                     )}
@@ -469,10 +693,10 @@ const StatsViewer = () => {
                         placeholder="Go to pos."
                         value={goToPosition}
                         onChange={(e) => setGoToPosition(e.target.value)}
-                        className="w-24 bg-gray-800/50 text-white border-gray-700 placeholder:text-gray-500"
+                        className="w-24 bg-gray-800/50 text-white border-gray-700 placeholder:text-gray-500 focus:ring-purple-500/50"
                         onKeyDown={(e) => { if (e.key === 'Enter') handleGoToPage(); }}
                       />
-                      <Button onClick={handleGoToPage} disabled={loading} className="bg-blue-500/20 text-blue-300 hover:bg-blue-500/30">
+                      <Button onClick={handleGoToPage} disabled={loading} className="bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
                         Go
                       </Button>
                     </div>
