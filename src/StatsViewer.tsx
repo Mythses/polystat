@@ -9,11 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 import { Tooltip } from 'react-tooltip';
-<<<<<<< HEAD
 import { AlertCircle, TriangleAlert } from 'lucide-react'; // Import TriangleAlert
-=======
-import { AlertCircle } from 'lucide-react';
->>>>>>> d750e7f2358d36a706dfea8aedfc67ffbf6fab81
 import {
   Select,
   SelectContent,
@@ -330,11 +326,7 @@ const StatsViewer = () => {
       // Only proceed if not currently loading and we have a trackId
       // Pass the current resolved userId to highlight it on the new page
       if (!loading && trackId) {
-<<<<<<< HEAD
          fetchLeaderboardPage(newPage, trackId, onlyVerified, userId); // Changed back to fetchData for pagination
-=======
-         fetchLeaderboardPage(newPage, trackId, onlyVerified, userId);
->>>>>>> d750e7f2358d36a706dfea8aedfc67ffbf6fab81
       } else if (loading) {
           setError('Already loading data. Please wait.');
       } else {
@@ -347,11 +339,7 @@ const StatsViewer = () => {
     // Only proceed if not currently loading, inputs are valid, and we have a trackId
     if (!loading && trackId && !isNaN(pos) && pos > 0 && pos <= totalPagesRef.current) {
       // Pass the current resolved userId to highlight it on the new page
-<<<<<<< HEAD
       fetchLeaderboardPage(Math.ceil(pos / AMOUNT), trackId, onlyVerified, userId); // Changed back to fetchData
-=======
-      fetchLeaderboardPage(Math.ceil(pos / AMOUNT), trackId, onlyVerified, userId);
->>>>>>> d750e7f2358d36a706dfea8aedfc67ffbf6fab81
       setGoToPosition('');
     } else if (loading) {
         setError('Already loading data. Please wait.');
@@ -534,18 +522,11 @@ const StatsViewer = () => {
           </Alert>
         )}
 
-<<<<<<< HEAD
         {/* Conditional suggestion below the error message with box and border */}
         {showErrorSuggestion && (
              <div className="flex items-center justify-center gap-2 text-yellow-400 text-sm text-center mt-2 p-3 border border-yellow-400 rounded-md bg-yellow-400/20"> {/* Increased opacity */}
                  <TriangleAlert className="h-4 w-4" /> {/* Changed icon */}
                  <span>Suggestion: Please double-check the input value and ensure the correct Input Type is selected (User ID, User Token, or Rank).</span>
-=======
-        {/* Conditional suggestion below the error message */}
-        {showErrorSuggestion && (
-             <div className="text-yellow-400 text-sm text-center mt-2">
-                 Suggestion: Please double-check the input value and ensure the correct Input Type is selected (User ID, User Token, or Rank).
->>>>>>> d750e7f2358d36a706dfea8aedfc67ffbf6fab81
              </div>
         )}
 
