@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 import { Tooltip } from 'react-tooltip';
-import { AlertCircle, TriangleAlert } from 'lucide-react'; // Import TriangleAlert
+import { AlertCircle, TriangleAlert } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -50,7 +50,7 @@ async function sha256(message: string): Promise<string> {
 }
 
 const getMedal = (percent: number | undefined) => {
-  if (percent === undefined) return null;
+  if (percent === undefined || typeof percent !== 'number' || isNaN(percent)) return null; // Added isNaN check
   if (percent <= 0.005) return { icon: '♦', label: 'Diamond', color: 'cyan', type: 'mineral' };
   if (percent <= 0.5) return { icon: '♦', label: 'Emerald', color: 'green', type: 'mineral' };
   if (percent <= 5) return { icon: '♦', label: 'Gold', color: 'gold', type: 'mineral' };
@@ -60,7 +60,7 @@ const getMedal = (percent: number | undefined) => {
 };
 
 const getPosMedal = (position: number | undefined) => {
-  if (position === undefined) return null;
+  if (position === undefined || typeof position !== 'number' || isNaN(position)) return null; // Added isNaN check
   if (position === 1) return { icon: '✦', label: 'WR', color: 'black', type: 'rank' };
   if (position <= 5) return { icon: '✦', label: 'Podium', color: 'white', type: 'rank' };
   return null;
@@ -110,7 +110,11 @@ const StatsViewer = () => {
         throw new Error(`Failed to fetch leaderboard data: ${response.status}`);
       }
       const data: LeaderboardData = await response.json();
-      totalPagesRef.current = Math.ceil(data.total / AMOUNT);
+
+      // Ensure total is a number, default to 0 if not
+      const totalEntries = typeof data.total === 'number' ? data.total : 0;
+      totalPagesRef.current = Math.ceil(totalEntries / AMOUNT);
+
 
       // Fetch recording data for entries on this page
       if (data.entries.length > 0) {
@@ -122,15 +126,30 @@ const StatsViewer = () => {
         setRecordingData([]);
       }
 
-      setStatsData(data); // Set the fetched leaderboard data
+      // Enrich entries with calculated rank and percent
+      const enrichedEntries = data.entries.map((entry, index) => {
+          // Rank is based on the index in the current page + the number of skipped entries + 1
+          const rank = skip + index + 1;
+          // Calculate percent only if totalEntries > 0 and rank is a valid number
+          const percent = totalEntries > 0 && typeof rank === 'number' ? (rank / totalEntries) * 100 : undefined;
+
+          return {
+              ...entry,
+              rank: rank,
+              percent: percent
+          };
+      });
+
+
+      setStatsData({ ...data, entries: enrichedEntries }); // Update statsData with enriched entries
 
     } catch (err: any) {
       setError(err.message || 'An error occurred while fetching leaderboard data.');
       setStatsData(null);
       setRecordingData(null);
     } finally {
-      // Loading is handled by the overall processUserInputAndFetchData
-      // setLoading(false); // Remove this here
+      // Ensure loading is set to false regardless of success or failure
+      setLoading(false);
     }
   }, [AMOUNT, PROXY_URL, API_BASE_URL, VERSION, RECORDING_API_BASE_URL]); // Dependencies for fetchLeaderboardPage
 
@@ -159,49 +178,59 @@ const StatsViewer = () => {
 
            const initialUserData: LeaderboardData = await initialUserResponse.json();
 
-           if (initialUserData.userEntry && initialUserData.userEntry.position !== undefined) {
-               const userPosition = initialUserData.userEntry.position;
-               const totalEntries = initialUserData.total;
+           // Extract user position and total entries from the initial fetch
+           const userPosition = initialUserData.userEntry && typeof initialUserData.userEntry.position === 'number'
+                                ? initialUserData.userEntry.position
+                                : undefined;
+           const totalEntries = typeof initialUserData.total === 'number' ? initialUserData.total : 0;
 
-               // Now, fetch the specific entry using the determined position
-               const specificUserSkip = Math.max(0, userPosition - 1); // Skip to the entry before the user's rank
-               const specificUserFetchUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${targetTrackId}&skip=${specificUserSkip}&amount=1&onlyVerified=${targetOnlyVerified}&userTokenHash=${targetUserId}`)}`;
-               const specificUserResponse = await fetch(specificUserFetchUrl);
 
-               if (!specificUserResponse.ok) {
-                   console.warn(`Specific user fetch failed: ${specificUserResponse.status}`);
-                   setUserData(null);
-                   setUserPage(null);
-                   return null;
-               }
+           // Now, fetch the specific entry using the determined position (if available)
+           // We still need this second fetch to get the full entry details like name, colors, frames
+           const specificUserSkip = typeof userPosition === 'number' ? Math.max(0, userPosition - 1) : 0; // Use position for skip if available
+           const specificUserFetchUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${targetTrackId}&skip=${specificUserSkip}&amount=1&onlyVerified=${targetOnlyVerified}${targetUserId ? `&userTokenHash=${targetUserId}` : ''}`)}`;
+           const specificUserResponse = await fetch(specificUserFetchUrl);
 
-               const specificUserData: LeaderboardData = await specificUserResponse.json();
+           if (!specificUserResponse.ok) {
+               console.warn(`Specific user fetch failed: ${specificUserResponse.status}`);
+               setUserData(null);
+               setUserPage(null);
+               return null;
+           }
 
-               if (specificUserData.entries && specificUserData.entries.length > 0) {
-                   const userEntry = specificUserData.entries[0]; // The user's entry should be the first (and only) one
-                    const finalUserEntry: LeaderboardEntry = {
-                        id: userEntry.id,
-                        userId: userEntry.userId || 'ID Unavailable',
-                        name: userEntry.name || 'Name Unavailable',
-                        carColors: userEntry.carColors || '',
-                        frames: userEntry.frames,
-                        verifiedState: userEntry.verifiedState,
-                        position: userEntry.position,
-                        rank: userEntry.position || 0,
-                        percent: ((userEntry.position || 0) / totalEntries) * 100 // Use the total from the initial fetch for percentage
-                    };
-                    setUserData(finalUserEntry);
-                    setUserPage(Math.ceil(finalUserEntry.position / AMOUNT));
-                    return finalUserEntry; // Return the fetched user data
-               } else {
-                   console.warn('Specific user fetch returned no entries.');
-                   setUserData(null);
-                   setUserPage(null);
-                   return null;
-               }
+           const specificUserData: LeaderboardData = await specificUserResponse.json();
 
+           // Ensure entries array exists and contains at least one entry
+           if (specificUserData.entries && specificUserData.entries.length > 0) {
+               const userEntry = specificUserData.entries[0]; // The user's entry should be the first (and only) one
+
+                // Use the userPosition from the initial fetch for rank calculation
+                const rank = userPosition;
+                // Calculate percent only if totalEntries > 0 and rank is a valid number
+                const percent = totalEntries > 0 && typeof rank === 'number' ? (rank / totalEntries) * 100 : undefined;
+
+
+                const finalUserEntry: LeaderboardEntry = {
+                    id: userEntry.id,
+                    userId: userEntry.userId || 'ID Unavailable',
+                    name: userEntry.name || 'Name Unavailable',
+                    carColors: userEntry.carColors || '',
+                    frames: userEntry.frames,
+                    verifiedState: userEntry.verifiedState,
+                    position: userEntry.position, // Keep original position from second fetch if needed elsewhere
+                    rank: rank, // Assign rank from initial fetch
+                    percent: percent // Assign calculated percent
+                };
+                setUserData(finalUserEntry);
+                // Only set userPage if rank is a valid number
+                if (typeof rank === 'number') {
+                    setUserPage(Math.ceil(rank / AMOUNT));
+                } else {
+                    setUserPage(null);
+                }
+                return finalUserEntry; // Return the fetched user data
            } else {
-               console.warn('Initial user fetch did not return userEntry with position.');
+               console.warn('Specific user fetch returned no entries.');
                setUserData(null);
                setUserPage(null);
                return null;
@@ -316,7 +345,7 @@ const StatsViewer = () => {
     // Cleanup function to clear the timeout if the component unmounts or inputs change again
     return () => {
         clearTimeout(handler);
-         setLoading(false); // Ensure loading is off if input changes rapidly
+         // setLoading(false); // Removed this here, as it's handled by processUserInputAndFetchData
     };
 
   }, [userInput, userInputType, trackId, onlyVerified, processUserInputAndFetchData]); // Dependencies for the debounced effect
@@ -545,23 +574,25 @@ const StatsViewer = () => {
                 <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg w-full">
                   <CardHeader>
                     <CardTitle className="text-2xl sm:text-3xl font-bold text-purple-400 text-center flex items-center justify-center gap-2 flex-wrap">
-                      {getPosMedal(userData.rank) ? (
+                      {/* Display rank with fallback */}
+                      {getPosMedal(userData.rank as number | undefined) ? (
                         <>
                           <span data-tooltip-id="statsPosMedal"
-                            data-tooltip-content={getPosMedal(userData.rank)?.label} style={{ color: getPosMedal(userData.rank)?.color }}>
-                            {getPosMedal(userData.rank)?.icon}
+                            data-tooltip-content={getPosMedal(userData.rank as number | undefined)?.label} style={{ color: getPosMedal(userData.rank as number | undefined)?.color }}>
+                            {getPosMedal(userData.rank as number | undefined)?.icon}
                           </span>
-                          <Tooltip id="statsPosMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getPosMedal(userData.percent ?? 0)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
+                          <Tooltip id="statsPosMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getPosMedal(userData.percent as number | undefined)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
                         </>
                       ) : null}
-                      <span className='truncate'>{userData.name || 'Name Unavailable'}</span> {/* Displaying the user's name here with fallback */}
-                      {getMedal(userData.percent ?? 0) ? (
+                      <span className='truncate'>{userData.name || 'Name Unavailable'}</span>
+                      {/* Display medal based on percent with fallback */}
+                      {getMedal(userData.percent as number | undefined) ? (
                         <>
                           <span data-tooltip-id="statsMedal"
-                            data-tooltip-content={getMedal(userData.percent ?? 0)?.label} style={{ color: getMedal(userData.percent ?? 0)?.color }}>
-                            {getMedal(userData.percent ?? 0)?.icon}
+                            data-tooltip-content={getMedal(userData.percent as number | undefined)?.label} style={{ color: getMedal(userData.percent as number | undefined)?.color }}>
+                            {getMedal(userData.percent as number | undefined)?.icon}
                           </span>
-                          <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getMedal(userData.percent ?? 0)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
+                          <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getMedal(userData.percent as number | undefined)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
                         </>
                       ) : null}
                     </CardTitle>
@@ -571,10 +602,12 @@ const StatsViewer = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 gap-4">
-                      <p><span className="font-semibold text-gray-300">Rank:</span> {userData.rank || 'N/A'}</p>
-                      <p><span className="font-semibold text-gray-300">Top:</span> {userData.percent ? userData.percent.toFixed(4) : 'N/A'}%</p>
-                      <p><span className="font-semibold text-gray-300">User ID:</span> {userData.userId || 'ID Unavailable'}</p> {/* Added fallback for User ID */}
-                      <p><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(userData.carColors || '')}</p> {/* Added fallback for Car Colors */}
+                      {/* Display rank with fallback */}
+                      <p><span className="font-semibold text-gray-300">Rank:</span> {typeof userData.rank === 'number' ? userData.rank : 'N/A'}</p>
+                       {/* Display top % with fallback and formatting */}
+                      <p><span className="font-semibold text-gray-300">Top:</span> {typeof userData.percent === 'number' ? `${userData.percent.toFixed(4)}%` : 'N/A'}</p>
+                      <p><span className="font-semibold text-gray-300">User ID:</span> {userData.userId || 'ID Unavailable'}</p>
+                      <p><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(userData.carColors || '')}</p>
                       <p><span className="font-semibold text-gray-300">Frames:</span> <span className="text-purple-400">{userData.frames} ({formatTime(userData.frames)})</span></p>
                       <p className="flex items-center gap-1"><span className="font-semibold text-gray-300">Verified:</span><VerifiedStateIcon verifiedState={userData.verifiedState} /></p>
                     </div>
@@ -608,15 +641,15 @@ const StatsViewer = () => {
                   <Trophy className="w-5 h-5" />
                   Leaderboard
                 </p>
-                <p className="text-gray-400">Total Entries: {statsData.total}</p>
+                <p className="text-gray-400">Total Entries: {statsData?.total ?? 'N/A'}</p>
               </div>
               <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg w-full">
                 <CardHeader />
                 <CardContent>
                   <div className="space-y-4">
-                    {statsData.entries.map((entry, index) => {
-                      const medal = getMedal(entry.percent ?? 0);
-                      const posMedal = getPosMedal(entry.rank);
+                    {statsData?.entries.map((entry, index) => {
+                      const medal = getMedal(entry.percent as number | undefined);
+                      const posMedal = getPosMedal(entry.rank as number | undefined);
                       let userBoxStyle = 'bg-gray-800/50 border border-gray-700';
                       let userTextStyle = '';
                       if (entry.userId === userId) {
@@ -642,12 +675,15 @@ const StatsViewer = () => {
                           <div className="grid grid-cols-1 gap-2">
                             <div className="flex items-center gap-1">
                               <span className="font-semibold text-gray-300">Rank:</span>
+                               {/* Display rank with fallback */}
                               {posMedal ? (
                                 <span data-tooltip-id={`posMedal-${entry.id}`} data-tooltip-content={posMedal?.label} style={{ color: posMedal?.color }}>{posMedal.icon}</span>
                               ) : null}
-                              <span className={userTextStyle}>{entry.rank}</span>
+                              <span className={userTextStyle}>{typeof entry.rank === 'number' ? entry.rank : 'N/A'}</span>
                             </div>
-                            <div><span className="font-semibold text-gray-300">Top:</span> <span className={userTextStyle}>{entry.percent ? entry.percent.toFixed(4) : 'N/A'}%</span>
+                            <div><span className="font-semibold text-gray-300">Top:</span>
+                               {/* Display top % with fallback and formatting */}
+                              <span className={userTextStyle}>{typeof entry.percent === 'number' ? `${entry.percent.toFixed(4)}%` : 'N/A'}</span>
                               {medal && medal.type === 'mineral' ? (
                                 <span className="ml-1" data-tooltip-id={`medal-${entry.id}`} data-tooltip-content={medal?.label} style={{ color: medal?.color }}>{medal ? medal.icon : ''}</span>
                               ) : null}
@@ -656,7 +692,7 @@ const StatsViewer = () => {
                             </div>
                             <div><span className="font-semibold text-gray-300 truncate">Name:</span> <span className={userTextStyle + ' truncate'}>{entry.name}</span></div>
                             <div><span className="font-semibold text-gray-300">User ID:</span> <span className={userTextStyle}>{entry.userId}</span></div>
-                            <div><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(entry.carColors)}</div>
+                            <div><span className="font-semibold text-semibold text-gray-300">Car Colors:</span> {displayCarColors(entry.carColors)}</div>
                             <div><span className="font-semibold text-gray-300">Frames:</span> <span className={userTextStyle}>{entry.frames}</span> (<span className={userTextStyle}>{formatTime(entry.frames)}</span>)</div>
                             <div className="flex items-center gap-1"><span className="font-semibold text-gray-300">Verified:</span><VerifiedStateIcon verifiedState={entry.verifiedState} /></div>
                             <div className="overflow-x-auto no-scroll"><span className="font-semibold text-gray-300">Recording:</span>{recordingData && recordingData[index] ? displayRecording(recordingData[index]?.recording || null) : displayRecording(null)}</div>
