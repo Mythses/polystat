@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/button'; // Assuming Button is needed elsewhere
-import { Input } from '@/components/ui/input'; // Assuming Input is needed elsewhere
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'; // Assuming Card components are needed elsewhere
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Assuming Alert components are needed elsewhere
-import { Search, Trophy, User, Circle, CheckCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, File, Copy, List } from 'lucide-react'; // Import Lucide icons
-import { cn } from '@/lib/utils'; // Assuming cn utility is available
-// Removed import for Switch and Label from @/components/ui
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Search, Trophy, User, Circle, CheckCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, File, Copy, List } from 'lucide-react'; // Import List icon
+import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion'; // Import AnimatePresence
 import { Tooltip } from 'react-tooltip';
 import { AlertCircle, TriangleAlert, Info } from 'lucide-react'; // Added Info icon
@@ -15,7 +16,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"; // Assuming Select components are needed elsewhere
+} from "@/components/ui/select";
 
 interface LeaderboardEntry { id: number; userId: string; name: string; carColors: string; frames: number; verifiedState: number; position: number; rank?: number; percent?: number; }
 interface LeaderboardData { total: number; entries: LeaderboardEntry[]; userEntry: LeaderboardEntry | null; }
@@ -51,7 +52,7 @@ const PREDEFINED_TRACKS = [
   { name: "Hyperion's Sanctuary", id: 'b41ac84904b60d00efa5ab8bb60f42c929c16d8ebbfe2f77126891fcddab9c1c' },
   { name: 'Opal Palace - Repolished', id: '89f1a70d0e6be8297ec340a378b890f3fed7d0e20e3ef15b5d32ef4ef7ff1701' },
   { name: 'Snow Park', id: '2978b99f058cb3a2ce6f97c435c803b8d638400532d7c79028b2ec3d5e093882' },
-  { name: 'Winter Hollow', id: '2046c377ac7ec5326b263c4657f30b66ba856257ddc317a866e3e7f66a73929' },
+  { name: 'Winter Hollow', id: '2046c377ac7ec5326b263c46587f30b66ba856257ddc317a866e3e7f66a73929' },
   { name: 'Arabica', id: '1aadcef252749318227d5cd4ce61a4a71526087857857104fd57697b63102e8a' },
   { name: 'Clay temples', id: '773eb0b02b97a72f3e482738cda7a5292294800497e16d9366e4f4c88a6f4e2d' },
   { name: 'DESERT STALLION', id: '932da81567f2b223fa1a52d88d6db52016600c5b9df02218f06c9eb832ecddeb' },
@@ -684,33 +685,18 @@ const Leaderboard = () => {
                   )}
                   </AnimatePresence>
 
-                   {/* Only Verified Switch (Animated) - Implemented with standard HTML and Tailwind */}
+                   {/* Only Verified Switch (Animated) */}
+                   {/* Removed conditional rendering based on userInputType */}
                    <motion.div variants={itemVariants} initial="hidden" animate="visible" exit="hidden">
                        <div className="flex items-center space-x-2">
-                           {/* Custom Switch Implementation */}
-                           <button
-                               role="switch"
-                               aria-checked={onlyVerified}
-                               onClick={() => setOnlyVerified(!onlyVerified)}
-                               className={cn(
-                                   "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black",
-                                   onlyVerified ? 'bg-purple-500' : 'bg-gray-700', // Track color based on state
-                                   'focus:ring-purple-500' // Focus ring
-                               )}
-                           >
-                               <span className="sr-only">Toggle verified filter</span>
-                               <span
-                                   aria-hidden="true"
-                                   className={cn(
-                                       "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                                       onlyVerified ? 'translate-x-5' : 'translate-x-0' // Thumb position based on state
-                                   )}
-                               ></span>
-                           </button>
-                           {/* Custom Label Implementation */}
-                           <label htmlFor="verified-toggle" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white">
+                           <Switch
+                             checked={onlyVerified}
+                             onCheckedChange={setOnlyVerified}
+                             className="data-[state=checked]:bg-purple-500 data-[state=unchecked]:bg-gray-700 focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black transition-colors duration-200"
+                           />
+                           <Label htmlFor="airplane-mode" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white">
                              Only Verified
-                           </label>
+                           </Label>
                        </div>
                    </motion.div>
 
