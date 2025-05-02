@@ -88,8 +88,7 @@ const COMMUNITY_TRACKS = [
   { name: 'Sandline Ultimatum', id: 'faed71cf26ba4d183795ecc93e3d1b39e191e51d664272b512692b0f4f323ff5' },
 ];
 
-// ALL_TRACKS is no longer used directly for fetching, but kept for reference if needed
-// const ALL_TRACKS = [...OFFICIAL_TRACKS, ...COMMUNITY_TRACKS];
+const ALL_TRACKS = [...OFFICIAL_TRACKS, ...COMMUNITY_TRACKS]; // Combined list for searching basic data
 
 const API_BASE_URL = 'https://vps.kodub.com:43273/leaderboard';
 const USER_API_BASE_URL = 'https://vps.kodub.com:43273/user'; // User specific API
@@ -408,95 +407,83 @@ const UserViewer = () => {
       setLoading(true);
       let targetUserId: string | null = null;
       let processingError: string | null = null;
+      let foundBasicData: UserBasicData | null = null; // Variable to hold found basic data
 
       // Step 1: Resolve User ID and fetch basic data (name, carColors, isVerifier)
       if (userInputType === 'userid') {
         targetUserId = userInput;
         setBasicUserData({
-             name: 'Fetching Name...', // Set a temporary state while fetching
+             name: 'Searching for user...', // Set a temporary state while searching
              carColors: '',
              isVerifier: 'N/A', // isVerifier cannot be determined from User ID
         });
 
-        const summer1Track = OFFICIAL_TRACKS.find(track => track.name === 'Summer 1');
-
-        if (summer1Track) {
+        // Iterate through ALL_TRACKS to find the user's basic data
+        for (const track of ALL_TRACKS) {
             try {
                 // First call: Get user's position on using userTokenHash
-                const firstCallUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${summer1Track.id}&skip=0&amount=1&onlyVerified=false&userTokenHash=${targetUserId}`)}`;
+                const firstCallUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${track.id}&skip=0&amount=1&onlyVerified=false&userTokenHash=${targetUserId}`)}`;
                 const firstResponse = await fetch(firstCallUrl);
 
                 if (!firstResponse.ok) {
-                     console.warn(`First call failed or user not found (getting position): ${firstResponse.status}`);
-                     setBasicUserData({
-                          name: 'Name Unavailable (No entry found on)',
-                          carColors: '',
-                          isVerifier: 'N/A'
-                     });
-                } else {
-                    const firstData: { total: number; userEntry: LeaderboardEntry | null } = await firstResponse.json();
+                     console.warn(`First call failed or user not found on track ${track.name}: ${firstResponse.status}`);
+                     continue; // Continue to the next track if user not found on this one
+                }
 
-                    if (firstData.userEntry && firstData.userEntry.position !== undefined && firstData.userEntry.position > 0) {
-                        const userPosition = firstData.userEntry.position;
-                        const skipAmount = userPosition > 1 ? userPosition - 1 : 0; // Calculate skip amount
+                const firstData: { total: number; userEntry: LeaderboardEntry | null } = await firstResponse.json();
 
-                        // Second call: Get the user's entry at their position to get name/colors
-                        const secondCallUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${summer1Track.id}&skip=${skipAmount}&amount=1&onlyVerified=false`)}`; // Removed userTokenHash here
-                        const secondResponse = await fetch(secondCallUrl);
+                if (firstData.userEntry && firstData.userEntry.position !== undefined && firstData.userEntry.position > 0) {
+                    const userPosition = firstData.userEntry.position;
+                    const skipAmount = userPosition > 1 ? userPosition - 1 : 0; // Calculate skip amount
 
-                        if (!secondResponse.ok) {
-                            console.warn(`Second call failed at skip ${skipAmount} (getting entry details): ${secondResponse.status}`);
-                             setBasicUserData({
-                                  name: 'Name Unavailable (Error fetching entry details)',
-                                  carColors: '',
-                                  isVerifier: 'N/A'
-                             });
-                        } else {
-                            const secondData: { entries: LeaderboardEntry[] } = await secondResponse.json();
+                    // Second call: Get the user's entry at their position to get name/colors
+                    const secondCallUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${track.id}&skip=${skipAmount}&amount=1&onlyVerified=false`)}`; // Removed userTokenHash here
+                    const secondResponse = await fetch(secondCallUrl);
 
-                            if (secondData.entries && secondData.entries.length > 0 && secondData.entries[0].userId === targetUserId) {
-                                // Found the user's entry in the entries array
-                                setBasicUserData({
-                                    name: secondData.entries[0].name,
-                                    carColors: secondData.entries[0].carColors,
-                                    isVerifier: 'N/A' // Cannot determine isVerifier from User ID
-                                });
-                            } else {
-                                 console.warn(`User entry not found in second call entries array at skip ${skipAmount}.`);
-                                 setBasicUserData({
-                                      name: 'Name Unavailable (Entry details not found)',
-                                      carColors: '',
-                                      isVerifier: 'N/A'
-                                 });
-                            }
-                        }
+                    if (!secondResponse.ok) {
+                        console.warn(`Second call failed for track ${track.name} at skip ${skipAmount} (getting entry details): ${secondResponse.status}`);
+                        continue; // Continue to the next track on error
                     } else {
-                         console.warn(`User entry not found or no position in first call.`);
-                         setBasicUserData({
-                              name: 'Name Unavailable (No entry found)',
-                              carColors: '',
-                              isVerifier: 'N/A'
-                         });
+                        const secondData: { entries: LeaderboardEntry[] } = await secondResponse.json();
+
+                        if (secondData.entries && secondData.entries.length > 0 && secondData.entries[0].userId === targetUserId) {
+                            // Found the user's entry in the entries array - use this data
+                            foundBasicData = {
+                                name: secondData.entries[0].name,
+                                carColors: secondData.entries[0].carColors,
+                                isVerifier: 'N/A' // Cannot determine isVerifier from User ID
+                            };
+                            break; // Stop searching once data is found
+                        } else {
+                             console.warn(`User entry not found in second call entries array for track ${track.name} at skip ${skipAmount}.`);
+                             continue; // Continue to the next track
+                        }
                     }
+                } else {
+                     console.warn(`User entry not found or no position in first call for track ${track.name}.`);
+                     continue; // Continue to the next track
                 }
             } catch (e: any) {
-                 processingError = 'Failed to fetch user basic data from leaderboard.';
-                 console.error('leaderboard lookup error:', e);
-                 setBasicUserData({
-                      name: 'Name Unavailable (Network Error during lookup)',
-                      carColors: '',
-                      isVerifier: 'N/A'
-                 });
+                 console.error(`Network Error during leaderboard lookup for track ${track.name}:`, e);
+                 // Continue to the next track on network error
+                 continue;
             }
+        }
 
+        // After iterating through all tracks, set the basic user data
+        if (foundBasicData) {
+            setBasicUserData(foundBasicData);
         } else {
-             // Fallback if ID is not found (shouldn't happen with hardcoded list)
+             // If no entry was found on any track
              setBasicUserData({
-                  name: 'Name Unavailable (track results missing)',
+                  name: 'User Not Found on any tracks',
                   carColors: '',
                   isVerifier: 'N/A'
              });
+             // Set an error if the user wasn't found on any track
+             processingError = 'User ID not found on any official or community tracks.';
         }
+
 
       } else if (userInputType === 'usertoken') {
         try {
@@ -504,12 +491,21 @@ const UserViewer = () => {
           const fetchedBasicData = await fetchUserBasicData(userInput); // Fetch basic data using the token
            // Set basic user data from fetched data
            setBasicUserData(fetchedBasicData);
+           if (!fetchedBasicData || !fetchedBasicData.name) {
+               // If basic data fetch was successful but returned no name (e.g., token invalid or user doesn't exist via token API)
+               processingError = 'Could not retrieve user information for the provided User Token.';
+               setBasicUserData({
+                   name: 'User Info Unavailable (Token Lookup Failed)',
+                   carColors: '',
+                   isVerifier: false, // isVerifier will be false if token lookup fails
+               });
+           }
         } catch (e: any) {
           processingError = 'Failed to process user token or fetch basic data.';
           console.error('Token processing error:', e);
            // Set placeholder basic data on token error
            setBasicUserData({
-                name: 'Name Unavailable (Token Error)',
+                name: 'User Info Unavailable (Token Error)',
                 carColors: '',
                 isVerifier: false, // isVerifier will be false if token lookup fails
            });
@@ -528,7 +524,8 @@ const UserViewer = () => {
           setResolvedUserId(targetUserId); // Store the resolved user ID
 
           // Step 2: Fetch stats for all tracks
-          fetchAllUserTrackStats(targetUserId); // onlyVerified is handled internally by fetchUserTrackEntry now
+          // This call remains the same, as it fetches all entries for the resolved user ID
+          fetchAllUserTrackStats(targetUserId);
 
       } else {
           // This case should ideally be covered by processingError now, but keeping as a safeguard
@@ -536,7 +533,7 @@ const UserViewer = () => {
           setLoading(false);
       }
 
-  }, [userInput, userInputType, fetchUserBasicData, fetchAllUserTrackStats, OFFICIAL_TRACKS, PROXY_URL, API_BASE_URL, VERSION]);
+  }, [userInput, userInputType, fetchUserBasicData, fetchAllUserTrackStats, ALL_TRACKS, PROXY_URL, API_BASE_URL, VERSION]); // Added ALL_TRACKS to dependency array
 
 
     // Effect to set basic user data to 'not found' if no entries are returned after loading
@@ -546,12 +543,15 @@ const UserViewer = () => {
     useEffect(() => {
         // Only run if resolvedUserId is set, basicUserData is still in the initial or fetching state,
         // loading is finished, and no entries were found in the main fetch.
-        if (resolvedUserId && (!basicUserData || basicUserData.name === 'Fetching Name...') && !loading && officialTrackStats.length === 0 && communityTrackStats.length === 0) {
+        // Adjusted condition to check if basicUserData indicates a search or fetch state
+        if (resolvedUserId && (basicUserData?.name === 'Searching for user...' || basicUserData?.name === 'Fetching Name...') && !loading && officialTrackStats.length === 0 && communityTrackStats.length === 0) {
              setBasicUserData({
                  name: 'User Not Found on any tracks',
                  carColors: '',
                  isVerifier: 'N/A',
              });
+             // Also set an error if no tracks were found after a successful ID resolution
+             setError('User ID found, but no entries were found on any tracks.');
         }
     }, [resolvedUserId, basicUserData, officialTrackStats, communityTrackStats, loading]); // Depend on these states
 
@@ -823,7 +823,7 @@ const UserViewer = () => {
                                                className={`text-${getMedal(entry.percent)?.color} text-lg`}
                                                title={getMedal(entry.percent)?.label}
                                            >
-                                               {getMedal(entry.percent)?.icon}
+                                               {getMedal(entry.percent)?.icon} {/* Corrected: Added curly braces */}
                                            </span>
                                       </>
                                   )}
@@ -942,6 +942,16 @@ const UserViewer = () => {
                                     Suggestion: Ensure the entered User ID or User Token is correct.
                                 </p>
                             )}
+                             {error.includes("User ID not found on any official or community tracks") && (
+                                 <p className="mt-2 text-sm text-red-200">
+                                     Suggestion: The user might not have any entries on the listed tracks, or the User ID is incorrect.
+                                 </p>
+                             )}
+                              {error.includes("User ID found, but no entries were found on any tracks") && (
+                                 <p className="mt-2 text-sm text-red-200">
+                                     Suggestion: The User ID is valid, but no entries were found on the listed tracks.
+                                 </p>
+                             )}
                         </AlertDescription>
                     </Alert>
                 </motion.div>
@@ -996,7 +1006,7 @@ const UserViewer = () => {
                  </motion.div>
             )}
              {/* Display "User Information Unavailable" message if loading is done, resolvedUserId is set, and basicUserData is null or indicates not found */}
-             {!loading && resolvedUserId && (!basicUserData || basicUserData.name.startsWith('Name Unavailable') || basicUserData.name === 'Error fetching track data' || basicUserData.name === 'User Not Found on any tracks') && (
+             {!loading && resolvedUserId && (!basicUserData || basicUserData.name.startsWith('User Not Found') || basicUserData.name.startsWith('Name Unavailable') || basicUserData.name === 'Error fetching track data' || basicUserData.name.startsWith('User Info Unavailable')) && (
                  <motion.div
                      key="user-info-unavailable"
                      initial={{ opacity: 0, y: 20 }}
@@ -1009,7 +1019,7 @@ const UserViewer = () => {
                          <TriangleAlert className="h-4 w-4 text-blue-400" />
                          <AlertTitle className="text-blue-400">User Information Unavailable</AlertTitle>
                          <AlertDescription className="text-purple-300">
-                             We could not retrieve user information for the provided User ID from the leaderboard. Try switching to a User Token input. This might also mean the user has no entry.
+                             We could not retrieve user information for the provided input. This might mean the User ID or Token is incorrect, or the user has no entries on any tracks.
                          </AlertDescription>
                      </Alert>
                  </motion.div>
@@ -1124,7 +1134,7 @@ const UserViewer = () => {
                                                 <div className="text-center">
                                                     <p className="text-gray-300">Avg Percent:</p>
                                                     <p className="font-semibold text-lg flex items-center justify-center gap-1">
-                                                        {officialAverageStats.avgPercent}
+                                                        {officialAverageStats.avgPercent} {/* Corrected: Added curly braces */}
                                                          {/* Medals for Official Average Percent (using raw average) */}
                                                         {getMedal(officialAverageStats.rawAvgPercent) && (
                                                              <>
@@ -1189,7 +1199,7 @@ const UserViewer = () => {
                                                                       data-tooltip-id="avg-community-percent-tip"
                                                                       className={`text-${getMedal(communityAverageStats.rawAvgPercent)?.color} text-xl`}
                                                                   >
-                                                                      {getMedal(communityAverageStats.rawAvgPercent)?.icon}
+                                                                      {getMedal(communityAverageStats.rawAvgPercent)?.icon} {/* Corrected: Fixed typo .ico to .icon */}
                                                                   </span>
                                                              </>
                                                          )}

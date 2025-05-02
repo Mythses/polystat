@@ -1,14 +1,13 @@
-import { useState, useCallback, useRef, useEffect } from 'react'; // Import useEffect
-
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Search, User, Copy, List, Palette, CircleCheck, CircleX, Circle, CheckCircle } from 'lucide-react'; // Added CheckCircle
+import { Search, User, Copy, List, Palette, CircleCheck, CircleX, Circle, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, TriangleAlert, Info } from 'lucide-react';
-import { Tooltip } from 'react-tooltip'; // Import Tooltip
+import { Tooltip } from 'react-tooltip';
 import {
   Select,
   SelectContent,
@@ -17,7 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Define the predefined tracks (kept as it's needed for Rank lookup and basic data fallback)
 const PREDEFINED_TRACKS = [
   { name: 'Summer 1', id: 'ef949bfd7492a8b329c30fac19713d9ea96256fb8bf1cdb65cb3727c0205b862' },
   { name: 'Summer 2', id: 'cf1ceacd0e3239a44afe8e4c291bd655a80ffffe559964e9a5bc5c3e21c4cafc' },
@@ -51,21 +49,23 @@ const PREDEFINED_TRACKS = [
   { name: 'Sandline Ultimatum', id: 'faed71cf26ba4d183795ecc93e3d1b39e151d664272b512692b0f4f323ff5' },
 ];
 
-// Base URLs and version
 const API_BASE_URL_LEADERBOARD = 'https://vps.kodub.com:43273/leaderboard';
-const API_BASE_URL_USER = 'https://vps.kodub.com:43273/user'; // User data API endpoint
+const API_BASE_URL_USER = 'https://vps.kodub.com:43273/user';
 const PROXY_URL = 'https://hi-rewis.maxicode.workers.dev/?url=';
 const VERSION = '0.5.0';
-const AMOUNT = 10; // Still needed for the rank lookup API structure
+const AMOUNT = 10;
 
-// Type definition for User Data - Simplified for basic data view
 interface BasicUserData {
   name: string;
   carColors: string;
-  isVerifier: boolean | 'N/A'; // Allow 'N/A' for User ID input
+  isVerifier: boolean | 'N/A';
 }
 
-// Animation variants for smoother transitions
+const titleVariants = {
+  hidden: { opacity: 0, y: -50 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } },
+};
+
 const cardVariants = {
   hidden: { opacity: 0, y: 50 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
@@ -76,13 +76,9 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
 };
 
-// Adjusted alert variants for smoother exit with layout animation
 const alertVariants = {
   initial: { opacity: 0, y: -20 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
-  // The exit transition duration can be adjusted if needed,
-  // but 'layout' prop will handle the height animation timing.
-  // We can keep the opacity/y animation duration relatively short.
   exit: { opacity: 0, y: -10, transition: { duration: 0.3, ease: "easeIn" } },
 };
 
@@ -97,7 +93,6 @@ const CopyPopup = ({ text }: { text: string }) => (
   </motion.div>
 );
 
-// Function to calculate SHA-256 hash
 async function sha256(message: string): Promise<string> {
   const msgBuffer = new TextEncoder().encode(message);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -106,23 +101,21 @@ async function sha256(message: string): Promise<string> {
   return hashHex;
 }
 
-// Function to parse car colors string into an array of hex codes
 const parseCarColors = (colorString: string): string[] => {
-  if (!colorString || colorString.length !== 24) { // Expecting 4 colors * 6 hex chars = 24
+  if (!colorString || colorString.length !== 24) {
     console.error("Invalid carColors string format:", colorString);
     return [];
   }
   const colors: string[] = [];
   for (let i = 0; i < 24; i += 6) {
-    colors.push('#' + colorString.substring(i, 6)); // Corrected substring length
+    colors.push('#' + colorString.substring(i, 6));
   }
   return colors;
 };
 
-// Component to display Verified State icon (from provided snippet)
 const VerifiedStateIcon = ({ isVerifier }: { isVerifier: boolean | undefined | 'N/A' }) => {
-  if (isVerifier === undefined || isVerifier === 'N/A') return null; // Don't show anything if state is undefined or N/A
-  const tooltipId = `verifier-tip-${isVerifier}`; // Unique ID for tooltip
+  if (isVerifier === undefined || isVerifier === 'N/A') return null;
+  const tooltipId = `verifier-tip-${isVerifier}`;
   return (
     <>
       <Tooltip id={tooltipId}>
@@ -140,23 +133,21 @@ const VerifiedStateIcon = ({ isVerifier }: { isVerifier: boolean | undefined | '
 const Utils = () => {
   const [userInput, setUserInput] = useState('');
   const [userInputType, setUserInputType] = useState<'usertoken' | 'rank'>('usertoken');
-  const [trackId, setTrackId] = useState(''); // State for the track ID input when type is 'rank'
-  const [isOtherTrack, setIsOtherTrack] = useState(false); // State to toggle between predefined tracks and custom input for rank lookup
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null); // State for the resulting User ID
-  const [basicUserData, setBasicUserData] = useState<BasicUserData | null>(null); // State for basic user data
+  const [trackId, setTrackId] = useState('');
+  const [isOtherTrack, setIsOtherTrack] = useState(false);
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const [basicUserData, setBasicUserData] = useState<BasicUserData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [userLoading, setUserLoading] = useState(false); // Loading state for user data fetch
+  const [userLoading, setUserLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userError, setUserError] = useState<string | null>(null); // Error state for user data fetch
+  const [userError, setUserError] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Function to fetch and display basic user data after User ID is resolved
   const fetchAndDisplayUserData = useCallback(async (userId: string, inputToken: string | null = null, rankEntryData: any | null = null) => {
     setUserLoading(true);
     setUserError(null);
-    setBasicUserData(null); // Clear previous basic user data
-
+    setBasicUserData(null);
     if (!userId) {
       setUserLoading(false);
       return;
@@ -164,16 +155,14 @@ const Utils = () => {
 
     let fetchedBasicData: BasicUserData | null = null;
 
-    // Prioritize data from Rank lookup entry if available
     if (rankEntryData) {
       fetchedBasicData = {
         name: rankEntryData.name || 'Name Unavailable',
         carColors: rankEntryData.carColors || '',
-        isVerifier: 'N/A' // Cannot determine isVerifier from leaderboard entry
+        isVerifier: 'N/A'
       };
     }
 
-    // If input was a token, attempt to fetch from /user endpoint for isVerifier and potentially better name/colors
     if (inputToken) {
       try {
         const userApiUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL_USER + `?version=${VERSION}&userToken=${inputToken}`)}`;
@@ -181,42 +170,35 @@ const Utils = () => {
         if (response.ok) {
           const data = await response.json();
           if (data) {
-            // Use data from /user if available, merge with rank entry data if it exists
             fetchedBasicData = {
               name: data.name || (fetchedBasicData?.name || 'Name Unavailable'),
               carColors: data.carColors || (fetchedBasicData?.carColors || ''),
-              isVerifier: data.isVerifier // isVerifier will be boolean here
+              isVerifier: data.isVerifier
             };
           } else {
             console.warn("Incomplete data from /user endpoint.");
-            // If /user returns incomplete data but rankEntryData exists, use that and set isVerifier to 'N/A'
             if (fetchedBasicData) {
               fetchedBasicData.isVerifier = 'N/A';
             }
           }
         } else {
           console.warn(`Failed to fetch basic user data from /user: ${response.status}`);
-          // If /user fetch fails but rankEntryData exists, use that and set isVerifier to 'N/A'
           if (fetchedBasicData) {
             fetchedBasicData.isVerifier = 'N/A';
           }
         }
       } catch (e) {
         console.error("Error fetching basic user data from /user:", e);
-        // If /user fetch throws error but rankEntryData exists, use that and set isVerifier to 'N/A'
         if (fetchedBasicData) {
           fetchedBasicData.isVerifier = 'N/A';
         }
       }
     }
 
-    // If still no basic data (e.g., rank lookup failed, no token, /user failed),
-    // attempt to get name and car colors from a default leaderboard entry (Summer 1)
     if (!fetchedBasicData || fetchedBasicData.name === undefined || fetchedBasicData.carColors === undefined) {
       const summer1TrackId = PREDEFINED_TRACKS.find(track => track.name === 'Summer 1')?.id;
       if (summer1TrackId) {
         try {
-          // Fetch user's entry on Summer 1 to get name and car colors
           const userEntryUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL_LEADERBOARD + `?version=${VERSION}&trackId=${summer1TrackId}&skip=0&amount=1&onlyVerified=${false}&userTokenHash=${userId}`)}`;
           const userEntryResponse = await fetch(userEntryUrl);
           if (userEntryResponse.ok) {
@@ -225,7 +207,7 @@ const Utils = () => {
               fetchedBasicData = {
                 name: userEntryData.userEntry.name || 'Name Unavailable',
                 carColors: userEntryData.userEntry.carColors || '',
-                isVerifier: 'N/A' // Cannot determine isVerifier from leaderboard entry
+                isVerifier: 'N/A'
               };
             } else {
               console.warn("User entry not found on Summer 1 leaderboard.");
@@ -239,48 +221,44 @@ const Utils = () => {
       }
     }
 
-    // Set the final basic user data, defaulting if nothing was fetched
     if (fetchedBasicData) {
       setBasicUserData(fetchedBasicData);
     } else {
       setUserError('Could not fetch user basic data.');
-      setBasicUserData({ name: 'Unavailable', carColors: '', isVerifier: 'N/A' }); // Set default unavailable state
+      setBasicUserData({ name: 'Unavailable', carColors: '', isVerifier: 'N/A' });
     }
 
     setUserLoading(false);
   }, [PROXY_URL, API_BASE_URL_USER, API_BASE_URL_LEADERBOARD, VERSION, PREDEFINED_TRACKS]);
 
-  // Function to process input and get the User ID and then fetch basic data
   const processInputAndGetUserId = useCallback(async () => {
-    setError(null); // Clear error at the start
-    setUserError(null); // Clear user data error
-    setResolvedUserId(null); // Clear previous result
-    setBasicUserData(null); // Clear previous basic user data
-    setLoading(true); // Set loading true
+    setError(null);
+    setUserError(null);
+    setResolvedUserId(null);
+    setBasicUserData(null);
+    setLoading(true);
 
     if (!userInput) {
       const inputTypeLabel = userInputType === 'usertoken' ? 'User Token' : 'Rank';
       setError(`Please enter a value for ${inputTypeLabel}.`);
-      setLoading(false); // Ensure loading is false if input is missing
+      setLoading(false);
       return;
     }
 
-    // Track ID is only required for Rank lookup
     if (userInputType === 'rank' && !trackId) {
       setError('Please select or enter a Track ID to lookup by Rank.');
-      setLoading(false); // Ensure loading is false if track ID is missing for rank lookup
+      setLoading(false);
       return;
     }
 
     let targetUserId = '';
     let processingError: string | null = null;
-    let rankEntryData: any | null = null; // To store data from rank lookup entry
+    let rankEntryData: any | null = null;
 
-    try { // Added try block to catch errors during hashing or initial fetch
+    try {
       if (userInputType === 'usertoken') {
         try {
           targetUserId = await sha256(userInput);
-          // Basic user data will be fetched after resolving ID
         } catch (e: any) {
           processingError = 'Failed to hash user token.';
           console.error('Hashing error:', e);
@@ -289,11 +267,10 @@ const Utils = () => {
         const rank = parseInt(userInput, 10);
         if (!isNaN(rank) && rank > 0) {
           try {
-            // Fetch the entry at rank - 1 with amount 1 to get the user ID
             const skip = Math.max(0, rank - 1);
-            // CORRECTED: Ensure onlyVerified is false for rank lookup to find the user regardless of verification
             const rankLookupUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL_LEADERBOARD + `?version=${VERSION}&trackId=${trackId}&skip=${skip}&amount=1&onlyVerified=${false}`)}`;
             const response = await fetch(rankLookupUrl);
+
             if (!response.ok) {
               let errorDetail = `Failed to fetch user by rank: ${response.status}`;
               try {
@@ -306,10 +283,11 @@ const Utils = () => {
               }
               throw new Error(errorDetail);
             }
+
             const data: any = await response.json();
             if (data.entries && data.entries.length > 0) {
               targetUserId = data.entries[0].userId;
-              rankEntryData = data.entries[0]; // Store the entry data
+              rankEntryData = data.entries[0];
             } else {
               processingError = `No user found at rank ${rank} on this track.`;
             }
@@ -321,34 +299,29 @@ const Utils = () => {
         }
       }
 
-      // Set the result or error for User ID resolution
       if (processingError) {
         setError(processingError);
         setResolvedUserId(null);
-        // setLoading(false); // Removed, will be handled by finally
       } else if (targetUserId) {
         setResolvedUserId(targetUserId);
-        setError(null); // Clear error if successful
-        // Now fetch and display basic user data for the resolved user ID
-        // Pass the input token (if any) and the rank entry data (if any)
+        setError(null);
         fetchAndDisplayUserData(targetUserId, userInputType === 'usertoken' ? userInput : null, rankEntryData);
       } else {
-        // This case should be rare if processingError is handled, but as a fallback
         setError('Could not determine User ID.');
         setResolvedUserId(null);
         setBasicUserData(null);
-        setUserError(null); // Clear user data error if main error occurs
+        setUserError(null);
       }
-    } catch (err: any) { // Catch any unexpected errors during the main process
+    } catch (err: any) {
       processingError = err.message || 'An unexpected error occurred during processing.';
       setError(processingError);
       setResolvedUserId(null);
       setBasicUserData(null);
-      setUserError(null); // Clear user data error if main error occurs
+      setUserError(null);
     } finally {
-      setLoading(false); // Ensure loading is always set to false
+      setLoading(false);
     }
-  }, [userInput, userInputType, trackId, fetchAndDisplayUserData, PROXY_URL, API_BASE_URL_LEADERBOARD, VERSION]); // Dependencies
+  }, [userInput, userInputType, trackId, fetchAndDisplayUserData, PROXY_URL, API_BASE_URL_LEADERBOARD, VERSION]);
 
   const copyToClipboard = (text: string) => {
     if (!navigator.clipboard) {
@@ -367,83 +340,78 @@ const Utils = () => {
       });
   };
 
-  // Function to display car colors with copy functionality (from provided snippet)
   const displayCarColors = (carColors: string) => {
     if (!carColors) return <span className="text-gray-400">No Color Data</span>;
     const colors = carColors.match(/.{1,6}/g);
     if (!colors) return <span className="text-gray-400">Invalid Color Data</span>;
+
     return (
-      <div className="flex gap-1 items-center flex-wrap justify-start"> {/* Reduced gap */}
+      <div className="flex gap-1 items-center flex-wrap justify-start">
         {colors.map((c, i) => {
           const hex = `#${c.padEnd(6, '0')}`;
-          const tooltipId = `color-tip-${i}`; // Unique ID for tooltip
+          const tooltipId = `color-tip-${i}`;
           return (
             <motion.div
               key={i}
               style={{ backgroundColor: hex, cursor: 'pointer' }}
-              className="w-4 h-4 rounded-full border border-gray-600" // Reduced size
+              className="w-4 h-4 rounded-full border border-gray-600"
               onClick={() => copyToClipboard(hex)}
               whileHover={{ scale: 1.2 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-              data-tooltip-id={tooltipId} // Associate with tooltip
+              data-tooltip-id={tooltipId}
             >
               <Tooltip id={tooltipId}>
-                <span className="text-xs">{hex}</span> {/* Tooltip shows hex code */}
+                <span className="text-xs">{hex}</span>
               </Tooltip>
             </motion.div>
           );
         })}
-        {/* Removed the button to copy the full color string */}
       </div>
     );
   };
 
-  // Determine if the current error suggests an input type issue
   const showErrorSuggestion = error && (
     error.includes("User not found") ||
     error.includes("No user found at rank") ||
     error.includes("valid positive number for Rank") ||
     error.includes("Failed to hash user token") ||
     error.includes("Please enter a value for") ||
-    // Corrected: Check for trackId state for rank input type
     (userInputType === 'rank' && error.includes("Please select or enter a Track ID")) ||
-    (error.includes("Failed to fetch") && (userInput || trackId)) // Use trackId here for the input field
+    (error.includes("Failed to fetch") && (userInput || trackId))
   );
 
   const inputPlaceholder = userInputType === 'usertoken' ? 'User Token' : 'Rank (e.g., 1)';
 
-  // Determine if any data or error is present to trigger the upward animation
-  const isDataOrErrorPresent = resolvedUserId || error || basicUserData || userError;
+  // This variable indicates if the user data section is currently visible
+  const isUserDataSectionVisible = userLoading || basicUserData || userError || resolvedUserId; // Include resolvedUserId here
 
   return (
-    // Main container with min-h-screen and background
-    // Use flex-col and justify-center items-center to keep the main content centered
     <div className={cn(
-      "min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black p-4 md:p-8 flex flex-col justify-center items-center relative" // Added relative for absolute positioning of footer
+      "min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black p-4 md:p-8 flex flex-col justify-center items-center relative"
     )}>
       <AnimatePresence>
         {copiedText && <CopyPopup text={copiedText} />}
       </AnimatePresence>
 
-      {/* Main content block (Title, Card, Errors) - Now wrapped in motion.div with layout */}
       <motion.div
-        layout // Add layout prop for automatic layout animations
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        layout
         className={cn(
-          "max-w-2xl w-full space-y-6", // Increased max-w to 2xl, removed flex-col
-          "mx-auto" // Always horizontally centered
+          "max-w-2xl w-full space-y-6",
+          "mx-auto"
         )}
       >
-        {/* Animated Title */}
         <motion.h1
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
+          variants={titleVariants}
+          initial="hidden"
+          animate="visible"
           className="text-4xl sm:text-5xl md:text-6xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400"
         >
           Utils
         </motion.h1>
 
-        {/* Animated Card */}
         <motion.div
           variants={cardVariants}
           initial="hidden"
@@ -451,23 +419,21 @@ const Utils = () => {
         >
           <Card className="bg-gray-800/50 text-white border-purple-500/30 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-blue-400 text-2xl">User ID Finder</CardTitle> {/* Updated Title */}
+              <CardTitle className="text-blue-400 text-2xl">User ID Finder</CardTitle>
               <CardDescription className="text-gray-400">
                 Enter a User Token or a Rank and Track ID to find the corresponding User ID and data.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Animated Input/Select Row */}
               <motion.div variants={itemVariants} initial="hidden" animate="visible">
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
-                  {/* User Input Type Select */}
                   <Select onValueChange={(value: 'usertoken' | 'rank') => {
                     setUserInputType(value);
                     setUserInput('');
                     setResolvedUserId(null);
-                    setBasicUserData(null); // Clear user data
+                    setBasicUserData(null);
                     setError(null);
-                    setUserError(null); // Clear user data error
+                    setUserError(null);
                   }} defaultValue={userInputType}>
                     <SelectTrigger className="w-[180px] bg-black/20 text-white border-purple-500/30 focus:ring-purple-500/50">
                       <SelectValue placeholder="Select Input Type" />
@@ -477,8 +443,6 @@ const Utils = () => {
                       <SelectItem value="rank">Rank and Track ID</SelectItem>
                     </SelectContent>
                   </Select>
-
-                  {/* User Input Field */}
                   <Input
                     type={userInputType === 'rank' ? 'number' : 'text'}
                     placeholder={inputPlaceholder}
@@ -489,16 +453,15 @@ const Utils = () => {
                 </div>
               </motion.div>
 
-              {/* Conditional Note for User Token (Animated) */}
               <AnimatePresence>
                 {userInputType === 'usertoken' && (
                   <motion.div
-                    key="usertoken-note" // Added key for AnimatePresence
+                    key="usertoken-note"
                     variants={alertVariants}
                     initial="initial"
                     animate="animate"
                     exit="exit"
-                    layout // Add layout here
+                    layout
                   >
                     <Alert variant="default" className="bg-blue-500/10 text-blue-400 border-blue-500/30 mt-2">
                       <AlertTitle>Note:</AlertTitle>
@@ -513,19 +476,17 @@ const Utils = () => {
                 )}
               </AnimatePresence>
 
-              {/* Conditional rendering for Track ID input/select (only for Rank input type) */}
               <AnimatePresence>
                 {userInputType === 'rank' && (
                   <motion.div
-                    key="rank-inputs" // Added key for AnimatePresence
+                    key="rank-inputs"
                     variants={itemVariants}
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    layout // Add layout here
+                    layout
                   >
-                    <> {/* Fragment to group conditional elements */}
-                      {/* Corrected: Use local trackId state for the input field */}
+                    <>
                       {isOtherTrack ? (
                         <div className="flex items-center gap-2">
                           <Input
@@ -552,9 +513,9 @@ const Utils = () => {
                         <Select onValueChange={(value) => {
                           if (value === 'other') {
                             setIsOtherTrack(true);
-                            setTrackId(''); // Clear trackId when switching to 'Other'
+                            setTrackId('');
                           } else {
-                            setIsOtherTrack(false); // Already false, but good practice
+                            setIsOtherTrack(false);
                             setTrackId(value);
                           }
                         }} value={trackId || ''}>
@@ -571,19 +532,16 @@ const Utils = () => {
                           </SelectContent>
                         </Select>
                       )}
-
-                      {/* Warning Message for Rank method (Animated) */}
                       <motion.div
-                        key="rank-warning" // Added key for AnimatePresence
+                        key="rank-warning"
                         variants={alertVariants}
                         initial="initial"
                         animate="animate"
                         exit="exit"
-                        layout // Add layout here
+                        layout
                       >
                         <Alert variant="default" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/30 mt-2">
                           <AlertTitle>Note:</AlertTitle>
-                          {/* Moved icon inside AlertDescription and used flexbox */}
                           <AlertDescription className="flex items-center gap-2 text-orange-300">
                             <span className="text-yellow-400">
                               <TriangleAlert className="h-4 w-4" />
@@ -597,11 +555,9 @@ const Utils = () => {
                 )}
               </AnimatePresence>
 
-              {/* Search Button (Animated) */}
               <motion.div variants={itemVariants} initial="hidden" animate="visible">
                 <Button
                   onClick={processInputAndGetUserId}
-                  // Corrected: Disable if rank input type is selected but trackId is empty
                   disabled={loading || !userInput || (userInputType === 'rank' && !trackId)}
                   className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-3 rounded-full transition-all duration-300 hover:from-purple-600 hover:to-blue-600 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus:outline-none focus:ring-0"
                 >
@@ -622,88 +578,105 @@ const Utils = () => {
                 </Button>
               </motion.div>
 
-              {/* Display User Data (Basic Info) - Combined and Animated */}
               <AnimatePresence>
-                {(userLoading || basicUserData || userError) && (
+                {(userLoading || basicUserData || userError || resolvedUserId) && ( // Include resolvedUserId here
                   <motion.div
-                    key="user-data-section" // Add a key for AnimatePresence
+                    key="user-data-section"
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.5, ease: "easeOut" }}
-                    layout // Add layout here
-                  // Removed mt-6 as it's now inside the main card
+                    layout
+                    className="mt-4"
                   >
-                    {userLoading ? (
-                      <motion.div key="user-loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center justify-center gap-2 text-blue-400 mt-4"> {/* Added mt-4 for spacing */}
-                        <svg className="animate-spin h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Fetching user data...
-                      </motion.div>
-                    ) : userError ? (
-                      <motion.div key="user-error" variants={alertVariants} initial="initial" animate="animate" exit="exit" className="bg-red-500/10 text-red-400 border-red-500/30 mt-4" layout> {/* Added layout here */}
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>User Data Error</AlertTitle>
-                        <AlertDescription>{userError}</AlertDescription>
-                      </motion.div>
-                    ) : basicUserData && ( // Only render the content if basicUserData is available
-                      <motion.div key="user-data-content" variants={itemVariants} initial="hidden" animate="visible" className="space-y-2 mt-4" layout> {/* Added layout here */}
-                        <h3 className="text-purple-400 text-xl font-semibold flex items-center gap-2 border-b border-purple-500/30 pb-2"> {/* Added styling for a section header */}
+                    {/* Always display User Information header and User ID if resolvedUserId exists */}
+                    {resolvedUserId && (
+                      <div className="space-y-2">
+                         <h3 className="text-purple-400 text-xl font-semibold flex items-center gap-2 border-b border-purple-500/30 pb-2">
                           <User className="w-5 h-5" /> User Information
                         </h3>
-                        <p className="text-gray-300">Name: <span className="font-semibold text-blue-300">{basicUserData.name}</span></p>
-                        {resolvedUserId && ( // Only show User ID if resolved
+                        <p className="text-gray-300 flex items-center">
+                          User ID:
+                          <span className="font-mono text-sm text-gray-400 ml-2 break-all sm:break-words">{resolvedUserId}</span>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            onClick={() => copyToClipboard(resolvedUserId)}
+                            className="text-blue-400 p-0 ml-1"
+                            title="Copy User ID"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </p>
+                        {/* Conditionally display basic user data if available and not 'Unavailable' */}
+                        {basicUserData && basicUserData.name !== 'Unavailable' && (
+                           <p className="text-gray-300">Name: <span className="font-semibold text-blue-300">{basicUserData.name}</span></p>
+                        )}
+                         {basicUserData && basicUserData.carColors && (
+                          <div className="flex items-center text-gray-300">
+                            Car Colors: <span className="ml-2">{displayCarColors(basicUserData.carColors)}</span>
+                          </div>
+                        )}
+                         {basicUserData && basicUserData.isVerifier !== 'N/A' && (
                           <p className="text-gray-300 flex items-center">
-                            User ID:
-                            {/* Adjusted styling to prevent wrapping */}
-                            <span className="font-mono text-sm text-gray-400 ml-2 break-all sm:break-words">{resolvedUserId}</span>
-                            <Button
-                              variant="link"
-                              size="sm"
-                              onClick={() => copyToClipboard(resolvedUserId)}
-                              className="text-blue-400 p-0 ml-1"
-                              title="Copy User ID"
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
+                            Is Verifier: <span className="ml-2">
+                              {basicUserData.isVerifier ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-400" />}
+                            </span>
                           </p>
                         )}
-                        <div className="flex items-center text-gray-300">
-                          Car Colors: <span className="ml-2">{displayCarColors(basicUserData.carColors)}</span>
-                        </div>
-                        <p className="text-gray-300 flex items-center">
-                          Is Verifier: <span className="ml-2">
-                            {basicUserData.isVerifier === 'N/A' ? 'N/A' : (basicUserData.isVerifier ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-400" />)}
-                          </span>
-                        </p>
-                        {/* Conditional note for Rank input type */}
+                        {/* Conditional note for Rank input type - still relevant */}
                         {userInputType === 'rank' && (
                           <p className="text-sm text-gray-400 italic">
                             Is Verifier status cannot be determined when looking up by Rank. A User Token is required for this information.
                           </p>
                         )}
-                      </motion.div>
+                         {/* Display user data fetch error below the ID if it occurred */}
+                         {userError && (
+                           <Alert variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/30 mt-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>User Data Fetch Error</AlertTitle>
+                            <AlertDescription>{userError}</AlertDescription>
+                          </Alert>
+                         )}
+                      </div>
                     )}
+
+                    {/* Display loading state if userLoading is true */}
+                    {userLoading && (
+                      <div className="flex items-center justify-center gap-2 text-blue-400">
+                        <svg className="animate-spin h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Fetching user data...
+                      </div>
+                    )}
+
+                    {/* Display user error if userError is true AND resolvedUserId is null (initial fetch failed completely) */}
+                    {userError && !resolvedUserId && (
+                       <Alert variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/30">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>User Data Error</AlertTitle>
+                        <AlertDescription>{userError}</AlertDescription>
+                      </Alert>
+                    )}
+
                   </motion.div>
                 )}
               </AnimatePresence>
-
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Error Message for initial processing (moved outside the main card, Animated) */}
         <AnimatePresence>
           {error && (
             <motion.div
-              key="main-error" // Added key for AnimatePresence
+              key="main-error"
               variants={alertVariants}
               initial="initial"
               animate="animate"
               exit="exit"
-              layout // Add layout here
+              layout
             >
               <Alert variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/30">
                 <AlertCircle className="h-4 w-4" />
@@ -714,16 +687,15 @@ const Utils = () => {
           )}
         </AnimatePresence>
 
-        {/* Conditional suggestion below the error message with box and border (moved outside the main card, Animated) */}
         <AnimatePresence>
           {showErrorSuggestion && (
             <motion.div
-              key="suggestion-alert" // Added key for AnimatePresence
+              key="suggestion-alert"
               variants={alertVariants}
               initial="initial"
               animate="animate"
               exit="exit"
-              layout // Add layout here
+              layout
             >
               <div className="flex items-center justify-center gap-2 text-yellow-400 text-sm text-center mt-2 p-3 border border-yellow-400 rounded-md bg-yellow-400/20">
                 <TriangleAlert className="h-4 w-4" />
@@ -733,22 +705,21 @@ const Utils = () => {
           )}
         </AnimatePresence>
 
-        {/* Tooltip component - Removed 'effect' prop */}
-        <Tooltip id="verifier-tip-true" place="top" />
-        <Tooltip id="verifier-tip-false" place="top" />
-        {/* Tooltips for colors will be generated inside displayCarColors */}
-
       </motion.div> {/* Closing tag for the main content motion.div */}
 
-      {/* Version and Play Game Link - Fixed at the bottom */}
-      <div
-        className="absolute bottom-0 left-0 right-0 text-center text-gray-400 text-sm space-y-2 p-4" // Absolute positioning
-      >
-        <p>Version: {VERSION}</p>
-        {/* Placeholder link - replace with actual game link if available */}
-        <p>Play the game: <a href="https://www.kodub.com/apps/polytrack" className="text-purple-400 hover:underline">Polytrack</a></p>
-      </div>
-    </div>
+      <Tooltip id="verifier-tip-true" place="top" />
+      <Tooltip id="verifier-tip-false" place="top" />
+
+      {/* Conditionally render the version and game link */}
+      {!isUserDataSectionVisible && (
+        <div
+          className="absolute bottom-0 left-0 right-0 text-center text-gray-400 text-sm space-y-2 p-4"
+        >
+          <p>Version: {VERSION}</p>
+          <p>Play the game: <a href="https://www.kodub.com/apps/polytrack" className="text-purple-400 hover:underline">Polytrack</a></p>
+        </div>
+      )}
+    </div> // Closing tag for the main div
   );
 };
 
