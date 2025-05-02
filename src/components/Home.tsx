@@ -34,15 +34,15 @@ const Home = () => {
 
   // Navigation handlers using the navigate function
   const handleNavigateToLeaderboards = () => {
-    navigate('/polystats/leaderboard');
+    navigate('/leaderboard');
   };
 
   const handleNavigateToUser = () => {
-    navigate('/polystats/user');
+    navigate('/user');
   };
 
   const handleNavigateToUtils = () => {
-    navigate('/polystats/utils');
+    navigate('/utils');
   };
 
 

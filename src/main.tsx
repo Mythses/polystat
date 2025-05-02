@@ -21,7 +21,7 @@ const router = createHashRouter([
         // This route acts as a parent for paths starting with "/polystats".
         // We will use an index route within its children to handle the
         // base "/polystats" and "/polystats/" paths.
-        path: "/polystats",
+        path: "/",
         children: [
            
             {
