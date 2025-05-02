@@ -1,61 +1,49 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+// Import HashRouter, Routes, and Route
 import {
-  createBrowserRouter,
-  RouterProvider,
+  HashRouter as Router, // Alias HashRouter as Router for common usage
+  Routes,
+  Route,
 } from "react-router-dom";
+
+// Assuming your components are imported like this
 import Home from "./components/Home";
 import Leaderboard from "./components/Leaderboard";
 import User from "./components/User";
 import Utils from "./components/Utils";
+
 import "./index.css";
 
-// Create the browser router instance
-const router = createBrowserRouter([
-    {
-        // Route for the root path "/"
-        path: "/",
-        Component: Home,
-        index: true // This ensures it matches exactly "/"
-    },
-    {
-        // This route acts as a parent for paths starting with "/polystats".
-        // We will use an index route within its children to handle the
-        // base "/polystats" and "/polystats/" paths.
-        path: "/polystats",
-        children: [
-            {
-                // This index route matches the parent path exactly ("/polystats" and "/polystats/")
-                // and renders the Home component as requested.
-                index: true,
-                Component: Home
-            },
-            {
-                // This route matches "/polystats/leaderboard"
-                path: "leaderboard",
-                Component: Leaderboard
-            },
-            {
-                // This route matches "/polystats/user"
-                path: "user",
-                Component: User
-            },
-            {
-                // This route matches "/polystats/utils"
-                path: "utils",
-                Component: Utils
-            },
-        ]
-    }
-]);
+// Remove the createBrowserRouter definition
+// const router = createBrowserRouter([...]);
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
   const root = createRoot(rootElement);
-  // Render the application
+  // Render the application using HashRouter
   root.render(
     <StrictMode>
-      <RouterProvider router={router} />
+      {/* Use HashRouter instead of RouterProvider */}
+      {/* The basename prop is crucial for subdirectory deployments like /polystats/ */}
+      <Router basename="/polystats">
+        <Routes>
+          {/* Define your routes using the path relative to the basename */}
+          {/* The root path "/" relative to "/polystats" is "/polystats/" or "/polystats" */}
+          <Route path="/" element={<Home />} />
+
+          {/* This route matches "/polystats/#/leaderboard" */}
+          <Route path="/leaderboard" element={<Leaderboard />} />
+
+          {/* This route matches "/polystats/#/user" */}
+          <Route path="/user" element={<User />} />
+
+          {/* This route matches "/polystats/#/utils" */}
+          <Route path="/utils" element={<Utils />} />
+
+          {/* Add more routes as needed */}
+        </Routes>
+      </Router>
     </StrictMode>
   );
 }
