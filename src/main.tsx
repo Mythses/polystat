@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  createBrowserRouter,
+  createHashRouter,
   RouterProvider,
 } from "react-router-dom";
 import Home from "./components/Home";
@@ -11,12 +11,11 @@ import Utils from "./components/Utils";
 import "./index.css";
 
 // Create the browser router instance
-const router = createBrowserRouter([
+const router = createHashRouter([
     {
         // Route for the root path "/"
         path: "/",
         Component: Home,
-        index: true // This ensures it matches exactly "/"
     },
     {
         // This route acts as a parent for paths starting with "/polystats".
@@ -24,12 +23,7 @@ const router = createBrowserRouter([
         // base "/polystats" and "/polystats/" paths.
         path: "/polystats",
         children: [
-            {
-                // This index route matches the parent path exactly ("/polystats" and "/polystats/")
-                // and renders the Home component as requested.
-                index: true,
-                Component: Home
-            },
+           
             {
                 // This route matches "/polystats/leaderboard"
                 path: "leaderboard",
