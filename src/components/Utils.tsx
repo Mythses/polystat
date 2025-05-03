@@ -29,7 +29,7 @@ const PREDEFINED_TRACKS = [
   { name: 'Winter 3', id: '7a0e04bfe09e1bead36ddd2f7e61d32fd6c1e55e907d60edc6ccd3e17532e1f7' },
   { name: 'Winter 4', id: '39b2d610aeed5d193f3346291fc4000ef23030e5817f471522f167b9e74ed1f5' },
   { name: 'Desert 1', id: '56a5e13736d871f92863cb60ad690e78547f459520e61285fde05bd02bd2d349' },
-  { name: 'Desert 2', id: '7425633d9f77c41bbf7486fdd2b3a2ce04aa26bacc870a0a32929b4c7e33a8cf3' },
+  { name: 'Desert 2', id: '7425633d9f77c41bbf7486fdd2b3a2ce04aa26bacc870a032929b4c7e33a8cf3' },
   { name: 'Desert 3', id: 'b84107a25d159c6544092903da12b61573971da5a6b3c917e55be30486ccaddd' },
   { name: 'Desert 4', id: '29b6343e99552c610e24a5bfefc8a240800ed151600c0dc8f5c0f3dce334d322' },
   { name: '90xRESET', id: '4d0f964b159d51d6906478bbb87e1edad21b0f1eb2972af947be34f2d8c49ae9' },
@@ -37,17 +37,18 @@ const PREDEFINED_TRACKS = [
   { name: 'lu muvimento', id: '2ccd83e9419b6071ad9272b73e549e427b1a0f62d5305015839ae1e08fb86ce6' },
   { name: 'Re : Akina', id: 'f112ab979138b9916221cbf46329fa7377a745bdd18cd3d00b4ffd6a8a68f113' },
   { name: "Hyperion's Sanctuary", id: 'b41ac84904b60d00efa5ab8bb60f42c929c16d8ebbfe2f77126891fcddab9c1c' },
-  { name: 'Opal Palace - Repolished', id: '89f1a70d0e6be8297ec340a378b890f3fed7d0e20e3ef15b5d32ef4efff1701' },
+  { name: 'Opal Palace - Repolished', id: '89f1a70d0e6be8297ec340a378b890f3fed7d0e20e3ef15b5d32ef4ef7ff1701' },
   { name: 'Snow Park', id: '2978b99f058cb3a2ce6f97c435c803b8d638400532d7c79028b2ec3d5e093882' },
   { name: 'Winter Hollow', id: '2046c377ac7ec5326b263c46587f30b66ba856257ddc317a866e3e7f66a73929' },
-  { name: 'Arabica', id: '1aadcef252749318227d5cd4ce61a4a71526087857857104fd57697b63102e8a' },
-  { name: 'Clay temples', id: '773eb0b02b97a72f3e482738cda7a5292294800497e16d9366e4f4c88a6f4e2d' },
+  { name: 'Arabica', id: '1aadcef252749318227d5cd4ce61a4a71526087857104fd57697b6fc63102e8a' },
+  { name: 'Clay temples', id: '773eb0b02b97a72f3e482738cda7a5292294800497e16d9366e4f4c88a6f4e2d' }, // Corrected ID
   { name: 'DESERT STALLION', id: '932da81567f2b223fa1a52d88d6db52016600c5b9df02218f06c9eb832ecddeb' },
   { name: 'Las Calles', id: '97da746d9b3ddd5a861fa8da7fcb6f6402ffa21f8f5cf61029d7a947bad76290' },
-  { name: 'Last Remnant', id: '19335bb082dfde2af4f7e73e812cd54cee0039a54cee0039a9eadf3793efee3ae3884ce423' },
+  { name: 'Last Remnant', id: '19335bb082dfde2af4f7e73e812cd54cee0039a9eadf3793efee3ae3884ce423' },
   { name: 'Malformations', id: 'bc7d29657a0eb2d0abb3b3639edcf4ade61705132c7ca1b56719a7a110096afd' },
-  { name: 'Sandline Ultimatum', id: 'faed71cf26ba4d183795ecc93e3d1b39e151d664272b512692b0f4f323ff5' },
+  { name: 'Sandline Ultimatum', id: 'faed71cf26ba4d183795ecc93e3d1b39e191e51d664272b512692b0f4f323ff5' },
 ];
+
 
 const API_BASE_URL_LEADERBOARD = 'https://vps.kodub.com:43273/leaderboard';
 const API_BASE_URL_USER = 'https://vps.kodub.com:43273/user';
