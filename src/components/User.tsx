@@ -1,12 +1,13 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react'; // Added useMemo
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Search, Trophy, User, Circle, CheckCircle, Copy, AlertCircle, TriangleAlert } from 'lucide-react';
+import { Search, Trophy, User, Circle, CheckCircle, Copy, AlertCircle, TriangleAlert, ArrowUpDown, RotateCw } from 'lucide-react'; // Added RotateCw icon for retry
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip } from 'react-tooltip'; // Import Tooltip component
+
 import {
   Select,
   SelectContent,
@@ -26,9 +27,10 @@ interface LeaderboardEntry {
     position: number;
     rank?: number;
     percent?: number;
-  }
+}
 
-type LeaderboardEntryWithTrackName = LeaderboardEntry & { trackName: string };
+// Updated LeaderboardEntryWithTrackName to include trackId
+type LeaderboardEntryWithTrackName = LeaderboardEntry & { trackName: string; trackId: string };
 
 interface UserBasicData {
     name: string;
@@ -51,42 +53,61 @@ interface Medal {
     type: 'mineral' | 'rank';
 }
 
+interface BestWorstStats {
+    bestTime?: LeaderboardEntryWithTrackName;
+    worstTime?: LeaderboardEntryWithTrackName;
+    bestRank?: LeaderboardEntryWithTrackName;
+    worstRank?: LeaderboardEntryWithTrackName;
+    bestPercent?: LeaderboardEntryWithTrackName;
+    worstPercent?: LeaderboardEntryWithTrackName;
+}
+
+// Define the structure for a track with potentially missing user data or error
+interface TrackWithUserData {
+    trackName: string;
+    trackId: string;
+    // userData can be a LeaderboardEntry, an error object with retry count, or null
+    userData?: LeaderboardEntry | { error: string, retryCount: number } | null;
+}
+
+
 // Define the predefined tracks
 const OFFICIAL_TRACKS = [
-  { name: 'Summer 1', id: 'ef949bfd7492a8b329c30fac19713d9ea96256fb8bf1cdb65cb3727c0205b862' },
-  { name: 'Summer 2', id: 'cf1ceacd0e3239a44afe8e4c291bd655a80ffffe559964e9a5bc5c3e21c4cafc' },
-  { name: 'Summer 3', id: '456a0ac6f849ecf5d4020ade78f4f2e2e44f3eee3cd21b9452ff8a993e0624dbd2f' }, // Corrected ID based on user's first prompt
-  { name: 'Summer 4', id: '668c209f6055c04b9f28e37127884039cb1f8710360bfe5b5578955295151979f' },
-  { name: 'Summer 5', id: 'b31551b1fc3cfdf3f76043b82d0c88d92451ae5246ce3db65bc3979e4912d01f' },
-  { name: 'Summer 6', id: 'b6657496f1f25ab8b1599c4cc7d93b2cecebef9bd018032993f9c2f92a9f2851' },
-  { name: 'Summer 7', id: 'f3d90e905743a30d4a01ff302be3ae0be38ee055cc1a3b99257752e505765c04' },
-  { name: 'Winter 1', id: '94de41605004b67581f7a2a4f68c84d352b5b723a604ccb38e511f5eac9d22a9' },
-  { name: 'Winter 2', id: 'f84e5f767fc5d53ae0d3ddf95dfb4a9197f361283cdb049673077b0208d12fe8' },
-  { name: 'Winter 3', id: '7a0e04bfe09e1bead36ddd2f7e61d32fd6c1e55e907d60edc6ccd3e17532e1f7' },
-  { name: 'Winter 4', id: '39b2d610aeed5d193f3346291fc4000ef23030e5817f471522f167b9e74ed1f5' },
-  { name: 'Desert 1', id: '56a5e13736d871f92863cb60ad690e78547f459520e61285fde05bd02bd2d349' },
-  { name: 'Desert 2', id: '7425633d9f77c41bbf7486fdd2b3a2ce04aa26bacc870a0a32929b4c7e33a8cf3' },
-  { name: 'Desert 3', id: 'b84107a25d159c6544092903da12b61573971da5a6b3c917e55be30486ccaddd' },
-  { name: 'Desert 4', id: '29b6343e995552c610e24a5bfefc8a240800ed151600c0dc8f5c0f3dce334d322' },
+    { name: 'Summer 1', id: 'ef949bfd7492a8b329c30fac19713d9ea96256fb8bf1cdb65cb3727c0205b862' },
+    { name: 'Summer 2', id: 'cf1ceacd0e3239a44afe8e4c291bd655a80ffffe559964e9a5bc5c3e21c4cafc' },
+    { name: 'Summer 3', id: '456a0ac6f849ecf5d4020ade78f4e2e44f3eee3cd21b9452ff8a93e0624dbd2f' },
+    { name: 'Summer 4', id: '668c209f6055c04b9f28e37127884039cb1f8710360bfe5b578955295151979f' },
+    { name: 'Summer 5', id: 'b31551b1fc3cfdf3f76043b82d0c88d92451ae5246ce3db65bc3979e4912d01f' },
+    { name: 'Summer 6', id: 'b6657496f1f25ab8b1599c4cc7d93b2cecebef9bd018032993f9c2f92a9f2851' },
+    { name: 'Summer 7', id: 'f3d90e905743a30d4a01ff302be3ae0be38ee055cc1a3b99257752e505765c04' },
+    { name: 'Winter 1', id: '94de41605004b67581f7a2a4f68c84d352b5b723a604ccb38e511f5eac9d22a9' },
+    { name: 'Winter 2', id: 'f84e5f767fc5d53ae0d3ddf95dfb4a9197f361283cdb049673077b0208d12fe8' },
+    { name: 'Winter 3', id: '7a0e04bfe09e1bead36ddd2f7e61d32fd6c1e55e907d60edc6ccd3e17532e1f7' },
+    { name: 'Winter 4', id: '39b2d610aeed5d193f3346291fc4000ef23030e5817f471522f167b9e74ed1f5' },
+    { name: 'Desert 1', id: '56a5e13736d871f92863cb60ad690e78547f459520e61285fde05bd02bd2d349' },
+    { name: 'Desert 2', id: '7425633d9f77c41bbf7486fdd2b3a2ce04aa26bacc870a0432929b4c7e33a8cf3' },
+    { name: 'Desert 3', id: 'b84107a25d159c6544092903da12b61573971da5a6b3c917e55be30486ccaddd' },
+    { name: 'Desert 4', id: '29b6343e99552c610e24a5bfefc8a240800ed151600c0dc8f5c0f3dce334d322' },
 ];
 
 const COMMUNITY_TRACKS = [
-  { name: '90xRESET', id: '4d0f964b159d51d6906478bbb87e1edad21b0f1eb2972af947be34f2d8c49ae9' },
-  { name: 'concrete jungle', id: '0544f97453f7b0e2a310dfb0dcd331b4060ae2e9cb14ac27dc5367183dab0513' },
-  { name: 'lu muvimento', id: '2ccd83e9419b6071ad9272b73e549e427b1a0f62d5305015839ae1e08fb86ce6' },
-  { name: 'Re : Akina', id: 'f112ab979138b9916221cbf46329fa7377a745bdd18cd3d00b4ffd6a8a68f113' },
-  { name: "Hyperion's Sanctuary", id: 'b41ac84904b60d00efa5ab8bb60f42c929c16d8ebbfe2f77126891fcddab9c1c' },
-  { name: 'Opal Palace - Repolished', id: '89f1a70d0e6be8297ec340a378b890f3fed7d0e20e3ef15b5d32ef4ef7ff1701' },
-  { name: 'Snow Park', id: '2978b99f058cb3a2ce6f97c435c803b8d638400532d7c79028b2ec3d5e093882' },
-  { name: 'Winter Hollow', id: '2046c377ac7ec5326b263c46587f30b66ba856257ddc317a866e3e7f66a73929' },
-  { name: 'Arabica', id: '1aadcef252749318227d5cd4ce61a4a71526087857857104fd57697b6fc63102e8a' },
-  { name: 'Clay temples', id: '773eb0b02b97a72f3e482738cda7a5292294800497e16d9366e4f4c88a6f4e2d' },
-  { name: 'DESERT STALLION', id: '932da81567f2b223fa1a52d88d6db52016600c5b9df02218f06c9eb832ecddeb' },
-  { name: 'Las Calles', id: '97da746d9b3ddd5a861fa8da7fcb6f6402ffa21f8f5cf61029d7a947bad76290' },
-  { name: 'Last Remnant', id: '19335bb082dfde2af4f7e73e812cd54cee0039a9eadf3793efee3ae3884ce423' },
-  { name: 'Malformations', id: 'bc7d29657a0eb2d0abb3b3639edcf4ade61705132c7ca1b56719a7a110096afd' },
-  { name: 'Sandline Ultimatum', id: 'faed71cf26ba4d183795ecc93e3d1b39e191e51d664272b512692b0f4f323ff5' },
+    { name: '90xRESET', id: '4d0f964b159d51d6906478bbb87e1edad21b0f1eb2972af947be34f2d8c49ae9' },
+    { name: 'concrete jungle', id: '0544f97453f7b0e2a310dfb0dcd331b4060ae2e9cb14ac27dc5367183dab0513' },
+    { name: 'lu muvimento', id: '2ccd83e9419b6071ad9272b73e549e427b1a0f62d5305015839ae1e08fb86ce6' },
+    { name: 'Re : Akina', id: 'f112ab979138b9916221cbf46329fa7377a745bdd18cd3d00b4ffd6a8a68f113' },
+    { name: "Hyperion's Sanctuary", id: 'b41ac84904b60d00efa5ab8bb60f42c929c16d8ebbfe2f77126891fcddab9c1c' },
+    { name: 'Opal Palace - Repolished', id: '89f1a70d0e6be8297ec340a378b890f3fed7d0e20e3ef15b5d32ef4ef7ff1701' },
+    { name: 'Snow Park', id: '2978b99f058cb3a2ce6f97c435c803b8d638400532d7c79028b2ec3d5e093882' },
+    { name: 'Winter Hollow', id: '2046c377ac7ec5326b263c46587f30b66ba856257ddc317a866e3e7f66a73929' },
+    { name: 'Arabica', id: '1aadcef252749318227d5cd4ce61a4a71526087857104fd57697b6fc63102e8a' },
+    { name: 'Clay temples', id: '773eb0b02b97a72f3e482738cda7a5292294800497e16d9366e4f4c88a6f4e2d' }, // Corrected ID
+    { name: 'DESERT STALLION', id: '932da81567f2b223fa1a52d88d6db52016600c5b9df02218f06c9eb832ecddeb' },
+    { name: 'Las Calles', id: '97da746d9b3ddd5a861fa8da7fcb6f6402ffa21f8f5cf61029d7a947bad76290' },
+    { name: 'Last Remnant', id: '19335bb082dfde2af4f7e73e812cd54cee0039a9eadf3793efee3ae3884ce423' },
+    { name: 'Malformations', id: 'bc7d29657a0eb2d0abb3b3639edcf4ade61705132c7ca1b56719a7a110096afd' },
+    { name: 'Sandline Ultimatum', id: 'faed71cf26ba4d183795ecc93e3d1b39e191e51d664272b512692b0f4f323ff5' }, // Corrected ID
 ];
+
 
 const ALL_TRACKS = [...OFFICIAL_TRACKS, ...COMMUNITY_TRACKS]; // Combined list for searching basic data
 
@@ -94,6 +115,8 @@ const API_BASE_URL = 'https://vps.kodub.com:43273/leaderboard';
 const USER_API_BASE_URL = 'https://vps.kodub.com:43273/user'; // User specific API
 const PROXY_URL = 'https://hi-rewis.maxicode.workers.dev/?url='; // Using the provided proxy
 const VERSION = '0.5.0';
+const MAX_RETRY_ATTEMPTS = 5; // Maximum number of auto-retries per track
+const AUTO_RETRY_INTERVAL = 7000; // Interval to check for failed tracks (7 seconds)
 
 
 // Function to calculate SHA-256 hash
@@ -122,7 +145,8 @@ const getPosMedal = (position: number | undefined): Medal | null => {
   if (position === undefined || isNaN(position) || position <= 0) return null;
   // Using standard Tailwind color names
   if (position === 1) return { icon: '✦', label: 'WR', color: 'black', type: 'rank' }; // Black is standard
-  if (position <= 5) return { icon: '✦', label: 'Podium', color: 'white', type: 'rank' }; // White is standard
+  // Changed Podium color to purple-300
+  if (position <= 5) return { icon: '✦', label: 'Podium', color: 'purple-300', type: 'rank' };
   return null;
 };
 
@@ -143,11 +167,21 @@ const UserViewer = () => {
   const [userInputType, setUserInputType] = useState<'userid' | 'usertoken'>('userid');
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null); // The actual user ID hash
   const [basicUserData, setBasicUserData] = useState<UserBasicData | null>(null); // User's basic info
-  const [officialTrackStats, setOfficialTrackStats] = useState<LeaderboardEntry[]>([]); // User's entries on official tracks
-  const [communityTrackStats, setCommunityTrackStats] = useState<LeaderboardEntry[]>([]); // User's entries on community tracks
+  // State to store fetched user entries, indexed by track ID for quick lookup
+  // This map will now store LeaderboardEntry | { error: string, retryCount: number } | null
+  const [userEntriesByTrack, setUserEntriesByTrack] = useState<Map<string, LeaderboardEntry | { error: string, retryCount: number } | null>>(() => new Map());
 
-  const [officialSortBy, setOfficialSortBy] = useState<'trackOrder' | 'reverseOrder' | 'highestPercent' | 'lowestPercent' | 'highestRank' | 'lowestRank' | 'fastestTime' | 'slowestTime' | 'alphabetical' | 'reverseAlphabetical'>('trackOrder');
-  const [communitySortBy, setCommunitySortBy] = useState<'trackOrder' | 'reverseOrder' | 'highestPercent' | 'lowestPercent' | 'highestRank' | 'lowestRank' | 'fastestTime' | 'slowestTime' | 'alphabetical' | 'reverseAlphabetical'>('trackOrder');
+  // Keep track of tracks where user has entries for averages/best/worst/medals
+  // These lists will only contain successful LeaderboardEntryWithTrackName objects
+  const [officialTracksWithEntries, setOfficialTracksWithEntries] = useState<LeaderboardEntryWithTrackName[]>([]);
+  const [communityTracksWithEntries, setCommunityTracksWithEntries] = useState<LeaderboardEntryWithTrackName[]>([]);
+
+
+  const [officialSortBy, setOfficialSortBy] = useState<'trackOrder' | 'lowestPercent' | 'highestRank' | 'fastestTime' | 'alphabetical'>('trackOrder'); // Reduced sort options
+  const [communitySortBy, setCommunitySortBy] = useState<'trackOrder' | 'lowestPercent' | 'highestRank' | 'fastestTime' | 'alphabetical'>('trackOrder'); // Reduced sort options
+
+  const [reverseOfficialSort, setReverseOfficialSort] = useState(false); // State for reverse button
+  const [reverseCommunitySort, setReverseCommunitySort] = useState(false); // State for reverse button
 
 
   const [officialAverageStats, setOfficialAverageStats] = useState<AverageStats | null>(null);
@@ -159,9 +193,14 @@ const UserViewer = () => {
   // State to track which medal box is hovered to show tracks
   const [hoveredMedal, setHoveredMedal] = useState<string | null>(null);
 
+  // New state for best/worst stats
+  const [officialBestWorst, setOfficialBestWorst] = useState<BestWorstStats>({});
+  const [communityBestWorst, setCommunityBestWorst] = useState<BestWorstStats>({});
+  const [overallBestWorst, setOverallBestWorst] = useState<BestWorstStats>({});
+
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // General error message
 
   const [copiedText, setCopiedText] = useState<string | null>(null);
   // Corrected initialization: Initialize useRef with null
@@ -169,7 +208,7 @@ const UserViewer = () => {
   const [displayMode, setDisplayMode] = useState<'input' | 'allTrackStats'>('input');
 
   // Helper to format frames into time string (frames are in milliseconds)
-  const formatTime = (frames: number) => {
+  const formatTime = (frames: number | undefined) => {
     if (typeof frames !== 'number' || isNaN(frames) || frames < 0) return 'N/A';
 
     // Total milliseconds
@@ -189,44 +228,55 @@ const UserViewer = () => {
   };
 
 
-  // Function to fetch user's entry for a specific track
-  // onlyVerified parameter is kept but will always be called with false in the new logic
-  const fetchUserTrackEntry = useCallback(async (userId: string, trackId: string, onlyVerified: boolean): Promise<LeaderboardEntry | null> => {
-      try {
-          // Fetch just the userEntry to get the position and total count
-          // We fetch only 1 entry (the user's) to get their specific data and rank/percent context
-          const userFetchUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${trackId}&skip=0&amount=1&onlyVerified=${onlyVerified}&userTokenHash=${userId}`)}`;
-          const userResponse = await fetch(userFetchUrl);
+  // Function to fetch user's entry for a specific track with retry logic
+  const fetchUserTrackEntry = useCallback(async (userId: string, trackId: string, onlyVerified: boolean, retries = 3, delay = 500): Promise<LeaderboardEntry | { error: string, retryCount: number } | null> => { // Updated return type to include retryCount
+      for (let i = 0; i <= retries; i++) {
+          try {
+              const userFetchUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${trackId}&skip=0&amount=1&onlyVerified=${onlyVerified}&userTokenHash=${userId}`)}`;
+              const userResponse = await fetch(userFetchUrl);
 
-          if (!userResponse.ok) {
-              // It's expected that a user might not have an entry on a track, don't treat as hard error
-              return null; // Return null if user not found on this track
+              if (!userResponse.ok) {
+                  // If it's a 404, the user just doesn't have an entry, which is not an error for this logic.
+                  if (userResponse.status === 404) {
+                       console.warn(`User not found on track ${trackId}.`);
+                       return null; // Return null if user not found on this track
+                  }
+                  // For other non-OK responses, throw an error to trigger retry
+                  throw new Error(`HTTP error! status: ${userResponse.status}`);
+              }
+
+              const userData: { total: number; userEntry: LeaderboardEntry | null } = await userResponse.json();
+
+              if (userData.userEntry) {
+                  const rank = userData.userEntry.position;
+                  const totalEntries = typeof userData.total === 'number' ? userData.total : 0;
+                  const percent = totalEntries > 0 && typeof rank === 'number' ? (rank / totalEntries) * 100 : undefined;
+
+                  return {
+                      ...userData.userEntry,
+                      rank: rank,
+                      percent: percent
+                  };
+              } else {
+                  // userEntry is null if user is not on the leaderboard, even if the request was 200 OK
+                  return null;
+              }
+
+          } catch (err: any) {
+              console.error(`Attempt ${i + 1} failed for track ${trackId}:`, err);
+              if (i < retries) {
+                  await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i))); // Exponential backoff delay
+              } else {
+                  // After last retry, return error indicator with retryCount
+                  console.error(`Max retries reached for track ${trackId}.`);
+                  return { error: err.message || 'Failed to load data', retryCount: i + 1 }; // Include retryCount in the returned error object
+              }
           }
-
-          const userData: { total: number; userEntry: LeaderboardEntry | null } = await userResponse.json();
-
-          if (userData.userEntry) {
-              // Calculate rank and percent based on userEntry position and total
-              const rank = userData.userEntry.position;
-              const totalEntries = typeof userData.total === 'number' ? userData.total : 0;
-              const percent = totalEntries > 0 && typeof rank === 'number' ? (rank / totalEntries) * 100 : undefined;
-
-              return {
-                  ...userData.userEntry,
-                  rank: rank,
-                  percent: percent
-              };
-          } else {
-              // userEntry is null if user is not on the leaderboard
-              return null;
-          }
-
-      } catch (err: any) {
-          console.error(`Error fetching user entry for track ${trackId}:`, err);
-          // Return null on error, don't stop the whole process
-          return null;
       }
-  }, [PROXY_URL, API_BASE_URL, VERSION]);
+      // Should not be reached if retries > 0, but as a fallback
+      return { error: 'Failed to load data after retries', retryCount: retries + 1 }; // Include retryCount in the fallback
+  }, [PROXY_URL, API_BASE_URL, VERSION]); // Added dependencies
+
 
   // Function to fetch user's basic data (if using token)
   const fetchUserBasicData = useCallback(async (userToken: string): Promise<UserBasicData | null> => {
@@ -276,10 +326,59 @@ const UserViewer = () => {
       return { avgTime, avgRank, avgPercent, rawAvgRank, rawAvgPercent };
   };
 
+    // Helper function to find best and worst stats from a list of entries
+    const findBestWorstStats = (entries: LeaderboardEntryWithTrackName[]): BestWorstStats => {
+        if (entries.length === 0) return {};
+
+        // Filter out entries without valid frames before finding best/worst time
+        const entriesWithTime = entries.filter(entry => typeof entry.frames === 'number' && !isNaN(entry.frames) && entry.frames >= 0);
+
+        let bestTime = entriesWithTime.length > 0 ? entriesWithTime[0] : undefined;
+        let worstTime = entriesWithTime.length > 0 ? entriesWithTime[0] : undefined;
+        let bestRank = entries.find(entry => entry.rank !== undefined && typeof entry.rank === 'number' && !isNaN(entry.rank)) || undefined;
+        let worstRank = entries.find(entry => entry.rank !== undefined && typeof entry.rank === 'number' && !isNaN(entry.rank)) || undefined;
+        let bestPercent = entries.find(entry => entry.percent !== undefined && typeof entry.percent === 'number' && !isNaN(entry.percent)) || undefined;
+        let worstPercent = entries.find(entry => entry.percent !== undefined && typeof entry.percent === 'number' && !isNaN(entry.percent)) || undefined;
+
+        entriesWithTime.forEach(entry => {
+            // Time (lower is better)
+            if (entry.frames < bestTime!.frames) bestTime = entry; // Use non-null assertion as we filtered for entriesWithTime
+            if (entry.frames > worstTime!.frames) worstTime = entry; // Use non-null assertion
+        });
+
+         entries.forEach(entry => {
+            // Rank (lower is better) - only compare if rank is valid
+            if (entry.rank !== undefined && typeof entry.rank === 'number' && !isNaN(entry.rank)) {
+                if (!bestRank || entry.rank < bestRank.rank!) bestRank = entry;
+                if (!worstRank || entry.rank > worstRank.rank!) worstRank = entry;
+            }
+
+            // Percent (lower is better) - only compare if percent is valid
+            if (entry.percent !== undefined && typeof entry.percent === 'number' && !isNaN(entry.percent)) {
+                if (!bestPercent || entry.percent < bestPercent.percent!) bestPercent = entry;
+                if (!worstPercent || entry.percent > worstPercent.percent!) worstPercent = entry;
+            }
+        });
+
+
+        return {
+            bestTime,
+            worstTime,
+            bestRank,
+            worstRank,
+            bestPercent,
+            worstPercent,
+        };
+    };
+
+
   // Helper function to group entries by medal type
   const groupEntriesByMedal = (entries: LeaderboardEntryWithTrackName[]): { [key: string]: LeaderboardEntryWithTrackName[] } => {
       const medalMap: { [key: string]: LeaderboardEntryWithTrackName[] } = {};
-      entries.forEach(entry => {
+      // Filter for entries that actually have a medal
+      const medalEligibleEntries = entries.filter(entry => getMedal(entry.percent) || getPosMedal(entry.position));
+
+      medalEligibleEntries.forEach(entry => {
           const percentMedal = getMedal(entry.percent);
           if (percentMedal) {
               if (!medalMap[percentMedal.label]) {
@@ -316,73 +415,228 @@ const UserViewer = () => {
       }
   };
 
+    // Function to scroll to a specific track entry
+    const scrollToTrack = useCallback((trackId: string) => {
+        const targetElement = document.getElementById(`track-${trackId}`);
+        if (targetElement) {
+            targetElement.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, []);
+
+
+  // Function to handle retrying a single track
+  const handleRetryTrack = useCallback(async (trackId: string, trackName: string, isAutoRetry: boolean = false) => {
+       if (!resolvedUserId) return; // Only retry if a user is loaded
+
+       // Get current entry state to determine retry count
+       const currentEntry = userEntriesByTrack.get(trackId);
+       const currentRetryCount = (currentEntry && typeof currentEntry === 'object' && 'error' in currentEntry) ? currentEntry.retryCount : 0;
+
+       // If this is an auto-retry and we've reached the max attempts, stop
+       if (isAutoRetry && currentRetryCount >= MAX_RETRY_ATTEMPTS) {
+           console.log(`Max auto-retries reached for track ${trackName}. Stopping auto-retry.`);
+           return;
+       }
+
+
+       // Set loading state for this specific track, incrementing retry count for errors
+       setUserEntriesByTrack(prevMap => {
+           const newMap = new Map(prevMap);
+           const existingEntry = newMap.get(trackId);
+           const newRetryCount = (existingEntry && typeof existingEntry === 'object' && 'error' in existingEntry) ? existingEntry.retryCount + 1 : 1;
+           newMap.set(trackId, { error: 'Retrying...', retryCount: newRetryCount }); // Indicate retrying and update count
+           return newMap;
+       });
+
+       // Clear the general error message if this was the only failed track (excluding the one being retried)
+       const failedTracksBeforeRetry = Array.from(userEntriesByTrack.entries())
+           .filter(([id, entryOrError]) =>
+               id !== trackId && // Exclude the current track
+               entryOrError &&
+               typeof entryOrError === 'object' &&
+               'error' in entryOrError &&
+               entryOrError.error !== 'Retrying...' // Exclude tracks already marked as retrying
+           );
+       if (error && failedTracksBeforeRetry.length === 0) {
+           setError(null);
+       }
+
+
+       // Fetch the track entry with retry logic (internal retries within fetchUserTrackEntry)
+       const entry = await fetchUserTrackEntry(resolvedUserId, trackId, false);
+
+       // Update the map with the new result
+       setUserEntriesByTrack(prevMap => {
+            const newMap = new Map(prevMap);
+            // If the new entry is still an error, preserve the incremented retry count
+            if (entry && typeof entry === 'object' && 'error' in entry) {
+                 const existingErrorEntry = newMap.get(trackId);
+                 const retryCount = (existingErrorEntry && typeof existingErrorEntry === 'object' && 'error' in existingErrorEntry) ? existingErrorEntry.retryCount : 0;
+                 newMap.set(trackId, { error: entry.error, retryCount: retryCount }); // Keep the incremented count
+            } else {
+                 newMap.set(trackId, entry); // Update with successful entry or null
+            }
+
+
+            // Re-calculate averages, best/worst, and medals if a successful entry was added or an error was resolved
+            // Filter for successful entries only for these calculations
+            const allTracksWithUserData: TrackWithUserData[] = ALL_TRACKS.map(track => ({
+                trackName: track.name,
+                trackId: track.id,
+                userData: newMap.get(track.id) as LeaderboardEntry | { error: string, retryCount: number } | null
+            }));
+
+            const successfulEntries = allTracksWithUserData.filter(t =>
+                t.userData !== null && !(typeof t.userData === 'object' && 'error' in t.userData)
+            ).map(t => ({
+                ...t.userData as LeaderboardEntry, // Spread the LeaderboardEntry properties
+                trackName: t.trackName, // Add trackName
+                trackId: t.trackId // Add trackId
+            })) as LeaderboardEntryWithTrackName[]; // Cast the result to the correct type
+
+
+            const updatedOfficial = successfulEntries.filter(entry => OFFICIAL_TRACKS.some(ot => ot.id === entry.trackId));
+            const updatedCommunity = successfulEntries.filter(entry => COMMUNITY_TRACKS.some(ct => ct.id === entry.trackId));
+
+
+            setOfficialTracksWithEntries(updatedOfficial);
+            setCommunityTracksWithEntries(updatedCommunity);
+            setOfficialAverageStats(calculateAverages(updatedOfficial));
+            setCommunityAverageStats(calculateAverages(updatedCommunity));
+            setOverallAverageStats(calculateAverages([...updatedOfficial, ...updatedCommunity]));
+            setMedalTracks(groupEntriesByMedal([...updatedOfficial, ...updatedCommunity]));
+            setOfficialBestWorst(findBestWorstStats(updatedOfficial));
+            setCommunityBestWorst(findBestWorstStats(updatedCommunity));
+            setOverallBestWorst(findBestWorstStats([...updatedOfficial, ...updatedCommunity]));
+
+            return newMap;
+       });
+
+        // Re-evaluate general error message after updating the map
+        const failedTracksAfterRetry = Array.from(userEntriesByTrack.values()).some(entry => entry && typeof entry === 'object' && 'error' in entry && entry.error !== 'Retrying...'); // Exclude 'Retrying...' from the count
+        if (failedTracksAfterRetry) {
+            setError('Some track data failed to load. You can try retrying individual tracks.');
+        } else {
+            setError(null); // Clear general error if all retries were successful
+        }
+
+  }, [resolvedUserId, fetchUserTrackEntry, userEntriesByTrack, error, ALL_TRACKS, OFFICIAL_TRACKS, COMMUNITY_TRACKS, calculateAverages, groupEntriesByMedal, findBestWorstStats]); // Added dependencies
+
 
   // Function to fetch user stats for all tracks
   const fetchAllUserTrackStats = useCallback(async (userId: string) => {
       setLoading(true);
-      setError(null);
-      setOfficialTrackStats([]);
-      setCommunityTrackStats([]);
+      setError(null); // Clear general error at the start
+      setUserEntriesByTrack(new Map()); // Clear previous entries map
+      setOfficialTracksWithEntries([]); // Clear previous tracks with entries
+      setCommunityTracksWithEntries([]); // Clear previous tracks with entries
       setOfficialAverageStats(null);
       setCommunityAverageStats(null);
       setOverallAverageStats(null);
       setMedalTracks({}); // Clear previous medal data
       setHoveredMedal(null); // Clear hovered medal state
-      // Basic user data is now fetched separately for User ID input, so no need to clear it here
+      setOfficialBestWorst({}); // Clear best/worst stats
+      setCommunityBestWorst({});
+      setOverallBestWorst({});
 
-      // Fetch entries for all official tracks
-      const officialStatsPromises = OFFICIAL_TRACKS.map(track =>
-          fetchUserTrackEntry(userId, track.id, false).then(entry => entry ? { trackName: track.name, ...entry } : null) // Pass false for onlyVerified
+      const fetchPromises = ALL_TRACKS.map((track, index) =>
+          // Reduced the delay before starting the fetch for each track
+          new Promise(resolve => setTimeout(resolve, index * 20)).then(() => // Reduced delay to 20ms per track
+              fetchUserTrackEntry(userId, track.id, false)
+                  .then(entry => ({ trackId: track.id, trackName: track.name, result: entry })) // Wrap result with track info
+                  .catch(error => ({ trackId: track.id, trackName: track.name, error: error.message || 'Unknown error' })) // Catch any unexpected errors
+          )
       );
-      // Fetch entries for all community tracks
-      const communityStatsPromises = COMMUNITY_TRACKS.map(track =>
-          fetchUserTrackEntry(userId, track.id, false).then(entry => entry ? { trackName: track.name, ...entry } : null) // Pass false for onlyVerified
-      );
 
-      try {
-          const officialResults = await Promise.all(officialStatsPromises);
-          const communityResults = await Promise.all(communityStatsPromises);
+      const results = await Promise.allSettled(fetchPromises); // Use allSettled
 
-          // Filter out null entries (user has no time on the track)
-          const validOfficialStats = officialResults.filter(entry => entry !== null) as (LeaderboardEntry & { trackName: string })[];
-          const validCommunityStats = communityResults.filter(entry => entry !== null) as (LeaderboardEntry & { trackName: string })[];
+      const fetchedEntriesMap = new Map<string, LeaderboardEntry | { error: string, retryCount: number } | null>(); // Map can now store errors or null
+      const officialTracksWithEntries: LeaderboardEntryWithTrackName[] = [];
+      const communityTracksWithEntries: LeaderboardEntryWithTrackName[] = [];
 
-          setOfficialTrackStats(validOfficialStats);
-          setCommunityTrackStats(validCommunityStats);
+      results.forEach(result => {
+          let trackId: string;
+          let trackName: string;
+          let entryOrError: LeaderboardEntry | { error: string, retryCount: number } | null = null; // Initialize entryOrError
 
-          // Calculate and set individual and overall averages
-          setOfficialAverageStats(calculateAverages(validOfficialStats));
-          setCommunityAverageStats(calculateAverages(validCommunityStats));
-          setOverallAverageStats(calculateAverages([...validOfficialStats, ...validCommunityStats]));
+          if (result.status === 'fulfilled') {
+              trackId = result.value.trackId;
+              trackName = result.value.trackName;
+              // Access the actual result from the fulfilled value
+              // Check if result.value exists, is an object, and has the 'result' property
+              if (result.value && typeof result.value === 'object' && 'result' in result.value) {
+                   entryOrError = result.value.result;
 
-          // Group entries by medal and set the state
-          setMedalTracks(groupEntriesByMedal([...validOfficialStats, ...validCommunityStats]));
+                   // If it's a specific error object from fetchUserTrackEntry, initialize retry count
+                   if (entryOrError && typeof entryOrError === 'object' && 'error' in entryOrError) {
+                        // Ensure retryCount is included even if the error came from fetchUserTrackEntry's catch
+                        fetchedEntriesMap.set(trackId, { error: entryOrError.error, retryCount: (entryOrError as any).retryCount || 0 }); // Use (entryOrError as any).retryCount to access it if present, fallback to 0
+                   } else if (entryOrError !== null) {
+                       // It's a successful entry (not null)
+                       fetchedEntriesMap.set(trackId, entryOrError);
+                       // Correctly construct LeaderboardEntryWithTrackName
+                       const trackWithEntry: LeaderboardEntryWithTrackName = { trackName: trackName, trackId: trackId, ...entryOrError };
+                       if (OFFICIAL_TRACKS.some(ot => ot.id === trackId)) {
+                           officialTracksWithEntries.push(trackWithEntry);
+                       } else {
+                           communityTracksWithEntries.push(trackWithEntry);
+                       }
+                   } else {
+                        // entryOrError is null, meaning user has no entry on this track
+                        fetchedEntriesMap.set(trackId, null); // Store null explicitly
+                   }
+              } else {
+                   // This case implies result.value was fulfilled but didn't have the expected 'result' property,
+                   // or was the inner error structure itself. Treat as a fetch error.
+                   console.error(`Fulfilled promise value did not have expected 'result' structure for track ${trackName}. Value:`, result.value);
+                   fetchedEntriesMap.set(trackId, { error: 'Unexpected data structure', retryCount: 0 });
+              }
+          } else { // result.status === 'rejected'
+              // Access reason for rejected promises
+              trackId = result.reason.trackId;
+              trackName = result.reason.trackName;
+               console.error(`Promise rejected for track ${trackName}:`, result.reason.error);
+               // Initialize retry count for unexpected errors
+               // FIX: Ensure rejected promises also set retryCount to 0
+               // The reason from Promise.allSettled might not have retryCount, add it here.
+               fetchedEntriesMap.set(trackId, { error: result.reason.error || 'Unknown error', retryCount: 0 });
+          }
+      });
 
 
-          setDisplayMode('allTrackStats'); // Switch display mode
+      setUserEntriesByTrack(fetchedEntriesMap); // Store the map with entries and errors
+      setOfficialTracksWithEntries(officialTracksWithEntries); // These lists only contain successful entries for averages etc.
+      setCommunityTracksWithEntries(communityTracksWithEntries);
 
-      } catch (err: any) {
-          console.error("Error fetching all user track stats:", err);
-          setError(err.message || 'An error occurred while fetching all user track stats.');
-          setOfficialTrackStats([]);
-          setCommunityTrackStats([]);
-          setOfficialAverageStats(null);
-          setCommunityAverageStats(null);
-          setOverallAverageStats(null);
-          setMedalTracks({}); // Clear medal data on error
-          setHoveredMedal(null); // Clear hovered medal state on error
-           // Ensure basic user data is set to 'not found' if an error occurs during the main fetch
-           if (!basicUserData || basicUserData.name === 'Fetching Name...') { // Check if basic data is still in initial or fetching state
-                setBasicUserData({
-                    name: 'Error fetching track data', // Indicate error during track data fetch
-                    carColors: '',
-                    isVerifier: 'N/A',
-               });
-           }
-      } finally {
-          setLoading(false);
+
+      // Calculate and set individual and overall averages using only tracks with entries
+      setOfficialAverageStats(calculateAverages(officialTracksWithEntries));
+      setCommunityAverageStats(calculateAverages(communityTracksWithEntries));
+      setOverallAverageStats(calculateAverages([...officialTracksWithEntries, ...communityTracksWithEntries]));
+
+      // Group entries by medal and set the state using only tracks with entries
+      setMedalTracks(groupEntriesByMedal([...officialTracksWithEntries, ...communityTracksWithEntries]));
+
+      // Calculate and set best/worst stats using only tracks with entries
+      setOfficialBestWorst(findBestWorstStats(officialTracksWithEntries));
+      setCommunityBestWorst(findBestWorstStats(communityTracksWithEntries));
+      setOverallBestWorst(findBestWorstStats([...officialTracksWithEntries, ...communityTracksWithEntries]));
+
+
+      setDisplayMode('allTrackStats'); // Switch display mode
+
+      // Check if any tracks failed to load and set a general error message if needed
+      const failedTracks = Array.from(fetchedEntriesMap.values()).some(entry => entry && typeof entry === 'object' && 'error' in entry);
+      if (failedTracks) {
+          setError('Some track data failed to load. Auto-retrying failed tracks...');
+      } else {
+          setError(null); // Clear general error if all retries were successful
       }
-  }, [fetchUserTrackEntry, OFFICIAL_TRACKS, COMMUNITY_TRACKS, calculateAverages, groupEntriesByMedal, basicUserData]); // Added basicUserData to dependency array
+
+
+      setLoading(false);
+
+  }, [fetchUserTrackEntry, calculateAverages, groupEntriesByMedal, findBestWorstStats, ALL_TRACKS, OFFICIAL_TRACKS, COMMUNITY_TRACKS, basicUserData]); // Added ALL_TRACKS etc. to dependencies
 
 
   // Combined function to process input and trigger appropriate data fetching
@@ -390,13 +644,17 @@ const UserViewer = () => {
       setError(null); // Clear error at the start
       setResolvedUserId(null); // Clear previous resolved user ID
       setBasicUserData(null); // Clear previous basic user data
-      setOfficialTrackStats([]); // Clear all track data
-      setCommunityTrackStats([]);
+      setUserEntriesByTrack(new Map()); // Clear previous entries map
+      setOfficialTracksWithEntries([]); // Clear previous tracks with entries
+      setCommunityTracksWithEntries([]); // Clear previous tracks with entries
       setOfficialAverageStats(null);
       setCommunityAverageStats(null);
       setOverallAverageStats(null);
       setMedalTracks({}); // Clear previous medal data
       setHoveredMedal(null); // Clear hovered medal state
+      setOfficialBestWorst({}); // Clear best/worst stats
+      setCommunityBestWorst({});
+      setOverallBestWorst({});
       setDisplayMode('input'); // Reset display mode initially
 
       if (!userInput) {
@@ -419,7 +677,9 @@ const UserViewer = () => {
         });
 
         // Iterate through ALL_TRACKS to find the user's basic data
+        // Added a small delay between checks to be less aggressive
         for (const track of ALL_TRACKS) {
+            await new Promise(resolve => setTimeout(resolve, 50)); // Add a small delay
             try {
                 // First call: Get user's position on using userTokenHash
                 const firstCallUrl = `${PROXY_URL}${encodeURIComponent(API_BASE_URL + `?version=${VERSION}&trackId=${track.id}&skip=0&amount=1&onlyVerified=false&userTokenHash=${targetUserId}`)}`;
@@ -490,9 +750,9 @@ const UserViewer = () => {
           targetUserId = await sha256(userInput);
           const fetchedBasicData = await fetchUserBasicData(userInput); // Fetch basic data using the token
            // Set basic user data from fetched data
-           setBasicUserData(fetchedBasicData);
+           setBasicUserData(fetchedBasicData); // Corrected typo
            if (!fetchedBasicData || !fetchedBasicData.name) {
-               // If basic data fetch was successful but returned no name (e.g., token invalid or user doesn't exist via token API)
+               // If basic data fetch was successful but returned no name (e.e., token invalid or user doesn't exist via token API)
                processingError = 'Could not retrieve user information for the provided User Token.';
                setBasicUserData({
                    name: 'User Info Unavailable (Token Lookup Failed)',
@@ -533,7 +793,7 @@ const UserViewer = () => {
           setLoading(false);
       }
 
-  }, [userInput, userInputType, fetchUserBasicData, fetchAllUserTrackStats, ALL_TRACKS, PROXY_URL, API_BASE_URL, VERSION]); // Added ALL_TRACKS to dependency array
+  }, [userInput, userInputType, fetchUserBasicData, fetchAllUserTrackStats, ALL_TRACKS, PROXY_URL, API_BASE_URL, VERSION]); // Added ALL_TRACKS etc. to dependencies
 
 
     // Effect to set basic user data to 'not found' if no entries are returned after loading
@@ -541,10 +801,10 @@ const UserViewer = () => {
     // but kept as a fallback in case of unexpected API behavior or if the initial lookup fails
     // but track entries are somehow still returned (unlikely but safer).
     useEffect(() => {
-        // Only run if resolvedUserId is set, basicUserData is still in the initial or fetching state,
-        // loading is finished, and no entries were found in the main fetch.
-        // Adjusted condition to check if basicUserData indicates a search or fetch state
-        if (resolvedUserId && (basicUserData?.name === 'Searching for user...' || basicUserData?.name === 'Fetching Name...') && !loading && officialTrackStats.length === 0 && communityTrackStats.length === 0) {
+        // Only run if resolvedUserId is set, basicUserData is not null/undefined,
+        // loading is finished, and no entries were returned in the main fetch.
+        // Refined the condition to explicitly check basicUserData != null and use optional chaining for name
+        if (resolvedUserId && basicUserData != null && (basicUserData.name === 'Searching for user...' || basicUserData.name === 'Fetching Name...') && !loading && officialTracksWithEntries.length === 0 && communityTracksWithEntries.length === 0) {
              setBasicUserData({
                  name: 'User Not Found on any tracks',
                  carColors: '',
@@ -553,7 +813,44 @@ const UserViewer = () => {
              // Also set an error if no tracks were found after a successful ID resolution
              setError('User ID found, but no entries were found on any tracks.');
         }
-    }, [resolvedUserId, basicUserData, officialTrackStats, communityTrackStats, loading]); // Depend on these states
+    }, [resolvedUserId, basicUserData, officialTracksWithEntries, communityTracksWithEntries, loading]); // Depend on these states
+
+    // Effect for auto-retrying failed tracks
+    useEffect(() => {
+        if (!resolvedUserId) return; // Only run if a user is loaded
+
+        const retryInterval = setInterval(() => {
+            console.log("Checking for failed tracks to retry...");
+            const failedTracksToRetry = Array.from(userEntriesByTrack.entries())
+                .filter(([trackId, entryOrError]) =>
+                    entryOrError &&
+                    typeof entryOrError === 'object' &&
+                    'error' in entryOrError &&
+                    entryOrError.error !== 'Retrying...' && // Don't retry tracks already marked as retrying
+                    entryOrError.retryCount < MAX_RETRY_ATTEMPTS // Only retry if retry count is below max
+                );
+
+            if (failedTracksToRetry.length > 0) {
+                console.log(`Found ${failedTracksToRetry.length} failed tracks to auto-retry.`);
+                failedTracksToRetry.forEach(([trackId, entryOrError]) => {
+                    // Add a slightly offset random delay between retries
+                     const delay = Math.random() * 2000 + 500; // Random delay between 500ms and 2500ms
+                     setTimeout(() => {
+                         // Find the track name from ALL_TRACKS using the trackId
+                         const trackName = ALL_TRACKS.find(t => t.id === trackId)?.name || trackId;
+                         handleRetryTrack(trackId, trackName, true); // Pass true for isAutoRetry
+                     }, delay);
+                });
+            } else {
+                console.log("No failed tracks found to auto-retry.");
+            }
+
+        }, AUTO_RETRY_INTERVAL); // Check every 7 seconds for failed tracks
+
+        // Cleanup function to clear the interval when the component unmounts or dependencies change
+        return () => clearInterval(retryInterval);
+
+    }, [userEntriesByTrack, resolvedUserId, handleRetryTrack, ALL_TRACKS]); // Depend on userEntriesByTrack, resolvedUserId, handleRetryTrack, and ALL_TRACKS
 
 
   // Function to copy text to clipboard
@@ -574,7 +871,7 @@ const UserViewer = () => {
       });
   };
 
-  // Function to display car colors with copy functionality
+  // Function to display car colors with copy functionality and tooltips
   const displayCarColors = (carColors: string) => {
     if (!carColors) return <span className="text-gray-400">No Color Data</span>;
     const colors = carColors.match(/.{1,6}/g);
@@ -583,18 +880,29 @@ const UserViewer = () => {
       <div className="flex gap-2 items-center flex-wrap justify-start">
         {colors.map((c, i) => {
           const hex = `#${c.padEnd(6, '0')}`;
+          // Use a unique ID for each tooltip based on index and hex code
+          const tooltipId = `color-tooltip-${i}-${hex.replace('#', '')}`;
           return (
             <motion.div
               key={i}
               style={{ backgroundColor: hex, cursor: 'pointer' }}
               className="w-4 h-4 rounded-full border border-gray-600" // Added border for visibility on light backgrounds
-              title={hex}
+              title={hex} // Keep title for fallback
               onClick={() => copyToClipboard(hex)}
               whileHover={{ scale: 1.2 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+              data-tooltip-id={tooltipId} // Add data-tooltip-id
+              data-tooltip-content={hex} // Add data-tooltip-content
             />
             );
         })}
+        {/* Add Tooltip components for the color circles */}
+        {colors.map((c, i) => {
+             const hex = `#${c.padEnd(6, '0')}`;
+             const tooltipId = `color-tooltip-${i}-${hex.replace('#', '')}`;
+             return <Tooltip key={tooltipId} id={tooltipId} place="top" className="!text-xs !bg-gray-700 !text-white" />;
+        })}
+
         <Button
           variant="link"
           size="sm"
@@ -629,147 +937,140 @@ const UserViewer = () => {
     );
   };
 
-  // Memoized sorted official track stats
-  const sortedOfficialTrackStats = useMemo(() => {
-      // Explicitly type the array as LeaderboardEntryWithTrackName[]
-      const sortedStats = [...officialTrackStats] as LeaderboardEntryWithTrackName[];
+  // Memoized sorted track stats for display (includes tracks with and without entries)
+  const sortedTrackDisplayStats = useMemo(() => {
+      // Combine all predefined tracks with their user data (if available from the map)
+      const allTracksWithUserData: TrackWithUserData[] = ALL_TRACKS.map(track => ({
+          trackName: track.name,
+          trackId: track.id,
+          userData: userEntriesByTrack.has(track.id) ? userEntriesByTrack.get(track.id) : undefined, // Get user data, error, or null from the map
+      }));
 
-      sortedStats.sort((a, b) => {
-          // Helper to handle undefined/NaN values, pushing them to the end
-          const compareNumbers = (valA: number | undefined, valB: number | undefined, ascending: boolean) => {
-              if (valA === undefined || isNaN(valA)) return 1; // Push undefined/NaN to end
-              if (valB === undefined || isNaN(valB)) return -1; // Push undefined/NaN to end
-              return ascending ? valA - valB : valB - valA;
-          };
+      // Separate into official and community for sorting
+      const officialDisplayStats = allTracksWithUserData.filter(track => OFFICIAL_TRACKS.some(ot => ot.id === track.trackId));
+      const communityDisplayStats = allTracksWithUserData.filter(track => COMMUNITY_TRACKS.some(ct => ct.id === track.trackId));
 
-          switch (officialSortBy) {
-              case 'trackOrder':
-                  // No sorting needed, return 0 to maintain original order (relative to each other)
-                  // However, the initial fetch order is preserved by the initial state,
-                  // so for a true 'trackOrder' sort, we might need to store the original index.
-                  // For now, returning 0 means they stay in their current relative order.
-                  // A better approach for strict 'trackOrder' might involve mapping and sorting by original index.
-                  // Let's assume 'trackOrder' means the order they were received in the initial fetch.
-                  return 0;
-              case 'reverseOrder':
-                   // To reverse, we need to know the original order. Since we don't store it,
-                   // we can simply reverse the array once when this sort is selected.
-                   // This sort function approach isn't ideal for a true reverse of the *original* fetch order
-                   // without storing original indices. Let's implement it as reversing the *current* order.
-                   // A more robust solution would store original indices.
-                   // For simplicity here, we'll just reverse the array copy directly if this option is selected,
-                   // although that mutates the copy which is generally okay in useMemo.
-                   // A better way would be to sort by a stored original index.
-                   // Let's revisit this if needed. For now, returning 0 means no change within sort.
-                   // The actual reversal would happen outside this sort function if we wanted strict original reverse.
-                   // Given the current structure, 'reverseOrder' is tricky. Let's interpret it as
-                   // sorting by track name descending as a reasonable alternative for 'reverse' feel.
-                   // Or, let's just reverse the array copy directly if this option is picked.
-                   // Let's try reversing the array copy directly.
-                   // This sort function should return a comparison value. Reversing the array should happen outside.
-                   // Let's remove 'reverseOrder' as a sort *function* option and handle it by simply reversing the array when the state changes.
-                   // Reverting 'reverseOrder' as a sort option and will handle it by reversing the array directly when selected.
-                   return 0; // Should not be reached if handled outside sort.
 
-              case 'highestPercent':
-                  return compareNumbers(a.percent, b.percent, false); // Descending
-              case 'lowestPercent':
-                  return compareNumbers(a.percent, b.percent, true); // Ascending
-              case 'highestRank':
-                  return compareNumbers(a.rank, b.rank, true); // Ascending rank (lower number is higher rank)
-              case 'lowestRank':
-                  return compareNumbers(a.rank, b.rank, false); // Descending rank (higher number is lower rank)
-              case 'fastestTime':
-                  return compareNumbers(a.frames, b.frames, true); // Ascending frames (lower frames is faster)
-              case 'slowestTime':
-                  return compareNumbers(a.frames, b.frames, false); // Descending frames (higher frames is slower)
-              case 'alphabetical':
-                  return a.trackName.localeCompare(b.trackName); // Ascending alphabetical
-              case 'reverseAlphabetical':
-                  return b.trackName.localeCompare(a.trackName); // Descending alphabetical
-              default:
-                  return 0; // Default to original order (no change)
-          }
-      });
+      // Helper to handle undefined/NaN/Error values, pushing them to the end for sorting
+      // Updated type annotation for valA and valB to include TrackWithUserData
+      const compareValues = (valA: LeaderboardEntry | { error: string, retryCount: number } | null | TrackWithUserData | undefined, valB: LeaderboardEntry | { error: string, retryCount: number } | null | TrackWithUserData | undefined, ascending: boolean, isNumeric: boolean, sortByMetric?: 'rank' | 'frames' | 'percent') => {
+           // Treat errors and nulls as larger than any valid number/string for sorting purposes
+           const isAErrorOrNull = valA === undefined || valA === null || (typeof valA === 'object' && 'error' in valA);
+           const isBErrorOrNull = valB === undefined || valB === null || (typeof valB === 'object' && 'error' in valB);
 
-       // Handle the specific 'reverseOrder' case by reversing the array copy once if selected
-       if (officialSortBy === 'reverseOrder') {
-           sortedStats.reverse();
-       }
+           if (isAErrorOrNull && isBErrorOrNull) return 0; // Both are errors/null, maintain relative order
+           if (isAErrorOrNull) return 1; // A is error/null, push to end
+           if (isBErrorOrNull) return -1; // B is error/null, push to end
 
-      return sortedStats;
-  }, [officialTrackStats, officialSortBy]); // Depend on original stats and sort preference
+            // Now we know both are not errors/null. They could be LeaderboardEntry or TrackWithUserData (for alphabetical sort).
+           if (isNumeric && sortByMetric) {
+               // Further check if they are actually LeaderboardEntry objects
+               if (typeof valA !== 'object' || valA === null || 'error' in valA) return 1; // A is not a valid entry, push to end
+               if (typeof valB !== 'object' || valB === null || 'error' in valB) return -1; // B is not a valid entry, push to end
 
-  // Memoized sorted community track stats
-  const sortedCommunityTrackStats = useMemo(() => {
-      // Explicitly type the array as LeaderboardEntryWithTrackName[]
-      const sortedStats = [...communityTrackStats] as LeaderboardEntryWithTrackName[];
+               const aEntry = valA as LeaderboardEntry; // Now this cast is safer
+               const bEntry = valB as LeaderboardEntry; // Now this cast is safer
 
-      sortedStats.sort((a, b) => {
-          // Helper to handle undefined/NaN values, pushing them to the end
-          const compareNumbers = (valA: number | undefined, valB: number | undefined, ascending: boolean) => {
-              if (valA === undefined || isNaN(valA)) return 1; // Push undefined/NaN to end
-              if (valB === undefined || isNaN(valB)) return -1; // Push undefined/NaN to end
-              // Corrected typo: should be valB - valA
-              return ascending ? valA - valB : valB - valA;
-          };
+               let numA, numB;
+               if (sortByMetric === 'rank') {
+                   numA = aEntry.rank;
+                   numB = bEntry.rank;
+               } else if (sortByMetric === 'frames') {
+                   numA = aEntry.frames;
+                   numB = bEntry.frames;
+               } else if (sortByMetric === 'percent') {
+                   numA = aEntry.percent;
+                   numB = bEntry.percent;
+               } else {
+                   return 0; // Should not happen
+               }
 
-          switch (communitySortBy) {
-              case 'trackOrder':
-                  return 0; // Maintain original order
-              case 'reverseOrder':
-                  // Handled by reversing the array copy after sort
-                  return 0;
-              case 'highestPercent':
-                  return compareNumbers(a.percent, b.percent, false); // Descending
-              case 'lowestPercent':
-                  return compareNumbers(a.percent, b.percent, true); // Ascending
-              case 'highestRank':
-                  return compareNumbers(a.rank, b.rank, true); // Ascending rank
-              case 'lowestRank':
-                  return compareNumbers(a.rank, b.rank, false); // Descending rank
-              case 'fastestTime':
-                  return compareNumbers(a.frames, b.frames, true); // Ascending frames
-              case 'slowestTime':
-                  return compareNumbers(a.frames, b.frames, false); // Descending frames
-              case 'alphabetical':
-                  return a.trackName.localeCompare(b.trackName); // Ascending alphabetical
-              case 'reverseAlphabetical':
-                  return b.trackName.localeCompare(a.trackName); // Descending alphabetical
-              default:
-                  return 0; // Default to original order
-          }
-      });
+               // Handle potential undefined/NaN within valid entries
+                if (numA === undefined || isNaN(numA as number)) return 1;
+                if (numB === undefined || isNaN(numB as number)) return -1;
 
-       // Handle the specific 'reverseOrder' case by reversing the array copy once if selected
-       if (communitySortBy === 'reverseOrder') {
-           sortedStats.reverse();
-       }
+               return ascending ? (numA as number) - (numB as number) : (numB as number) - (numA as number);
+           } else if (!isNumeric) {
+               // Alphabetical comparison (for trackName)
+               // In this case, valA and valB are the TrackWithUserData objects themselves
+               const nameA = (valA as TrackWithUserData).trackName;
+               const nameB = (valB as TrackWithUserData).trackName;
+               // Handle cases where trackName might be missing (though unlikely with current data structure)
+               if (!nameA) return 1;
+               if (!nameB) return -1;
+               return ascending ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+           }
 
-      return sortedStats;
-  }, [communityTrackStats, communitySortBy]); // Depend on original stats and sort preference
+           return 0; // Should not be reached
+      };
+
+
+      const sortStats = (stats: TrackWithUserData[], sortBy: typeof officialSortBy, reverseSort: boolean) => {
+          const sorted = [...stats]; // Create a copy to sort
+
+          sorted.sort((a, b) => {
+              const aData = a.userData;
+              const bData = b.userData;
+
+              let comparison = 0; // Default to 0 for trackOrder
+
+              switch (sortBy) {
+                  case 'lowestPercent':
+                      // Sort by percent, ascending (lower percent is better)
+                      comparison = compareValues(aData, bData, true, true, 'percent');
+                      break;
+                  case 'highestRank':
+                      // Sort by rank, ascending (lower rank number is higher rank)
+                      comparison = compareValues(aData, bData, true, true, 'rank');
+                      break;
+                  case 'fastestTime':
+                      // Sort by frames, ascending (lower frames is faster time)
+                      comparison = compareValues(aData, bData, true, true, 'frames');
+                      break;
+                  case 'alphabetical':
+                       // Sort by track name, ascending
+                       // Pass the TrackWithUserData objects themselves for alphabetical sort
+                      comparison = compareValues(a, b, true, false);
+                       break;
+                  case 'trackOrder':
+                  default:
+                      // Maintain original order - no sorting needed within this function
+                      comparison = 0;
+                      break;
+              }
+
+               // Apply reverse if needed
+               return reverseSort ? -comparison : comparison;
+          });
+
+          return sorted;
+      };
+
+
+      return {
+          official: sortStats(officialDisplayStats, officialSortBy, reverseOfficialSort), // Pass reverse state
+          community: sortStats(communityDisplayStats, communitySortBy, reverseCommunitySort), // Pass reverse state
+      };
+
+  }, [userEntriesByTrack, officialSortBy, communitySortBy, reverseOfficialSort, reverseCommunitySort, ALL_TRACKS, OFFICIAL_TRACKS, COMMUNITY_TRACKS]); // Depend on userEntriesByTrack and sort preferences
 
 
   // Function to render a list of track stats (used for Official and Community sections)
-  const renderTrackStatsList = (stats: LeaderboardEntryWithTrackName[], title: string, sortBy: typeof officialSortBy, setSortBy: typeof setOfficialSortBy) => {
+  const renderTrackStatsList = (stats: TrackWithUserData[], title: string, sortBy: typeof officialSortBy, setSortBy: typeof setOfficialSortBy, reverseSort: boolean, setReverseSort: (reverse: boolean) => void) => {
     const sortOptions = [
         { value: 'trackOrder', label: 'Track Order' },
-        { value: 'reverseOrder', label: 'Reverse Order' },
-        { value: 'highestPercent', label: 'Highest Percent' },
-        { value: 'lowestPercent', label: 'Lowest Percent' },
-        { value: 'highestRank', label: 'Highest Rank' },
-        { value: 'lowestRank', label: 'Lowest Rank' },
-        { value: 'fastestTime', label: 'Fastest Time' },
-        { value: 'slowestTime', label: 'Slowest Time' },
+        { value: 'lowestPercent', label: 'Percent (Lowest)' }, // Kept lowestPercent
+        { value: 'highestRank', label: 'Rank (Highest)' }, // Kept highestRank
+        { value: 'fastestTime', label: 'Time (Fastest)' }, // Kept fastestTime
         { value: 'alphabetical', label: 'Alphabetical' },
-        { value: 'reverseAlphabetical', label: 'Reverse Alphabetical' },
     ];
+
 
     return (
       <Card className="bg-gray-800/50 text-white border-purple-500/30">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"> {/* Adjusted header for layout */}
               <CardTitle className="text-purple-400">{title}</CardTitle>
-              {/* Sort Select */}
+              {/* Sort Controls */}
               <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-300">Sort by:</span>
                   <Select onValueChange={(value: typeof sortBy) => setSortBy(value)} defaultValue={sortBy}>
@@ -782,63 +1083,189 @@ const UserViewer = () => {
                           ))}
                       </SelectContent>
                   </Select>
+                   {/* Reverse Order Button */}
+                   <Button
+                       variant="outline"
+                       size="sm"
+                       onClick={() => setReverseSort(!reverseSort)} // Toggle reverse state
+                       className={cn(
+                           "bg-black/20 text-white border-purple-500/30 hover:bg-purple-700/30",
+                           { "bg-purple-700/50": reverseSort } // Highlight when reversed
+                       )}
+                       title="Reverse Order"
+                   >
+                       <ArrowUpDown className="h-4 w-4" />
+                   </Button>
               </div>
           </CardHeader>
           <CardContent className="space-y-4">
               {stats.length > 0 ? (
-                  stats.map((entry, index) => (
-                      <motion.div
-                          key={entry.id || entry.trackName} // Use a more stable key if ID is missing
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3, delay: index * 0.05 }}
-                          className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-700 pb-3 last:border-b-0 last:pb-0"
-                      >
-                          <div className="flex-1 mr-4">
-                              <p className="font-semibold text-blue-300">{entry.trackName}</p>
-                              <p className="text-sm text-gray-300">Time: {formatTime(entry.frames)}</p>
-                          </div>
-                          <div className="flex items-center gap-4 mt-2 sm:mt-0">
-                              {entry.rank !== undefined && <p className="text-sm text-gray-300">Rank: {entry.rank}</p>}
-                              {/* Increased decimal places for individual track percent */}
-                              {entry.percent !== undefined && <p className="text-sm text-gray-300">Percent: {entry.percent.toFixed(4)}%</p>}
-                              <div className="flex items-center gap-1">
-                                  {getPosMedal(entry.position) && (
-                                       <>
-                                           <Tooltip id={`pos-medal-${entry.id || entry.trackName}`}><span className="text-xs">{getPosMedal(entry.position)?.label}</span></Tooltip>
-                                           <span
-                                               data-tooltip-id={`pos-medal-${entry.id || entry.trackName}`}
-                                               className={`text-${getPosMedal(entry.position)?.color} text-lg`}
-                                               title={getPosMedal(entry.position)?.label}
-                                           >
-                                               {getPosMedal(entry.position)?.icon}
-                                           </span>
-                                      </>
-                                  )}
-                                   {getMedal(entry.percent) && (
-                                      <>
-                                           <Tooltip id={`percent-medal-${entry.id || entry.trackName}`}><span className="text-xs">{getMedal(entry.percent)?.label}</span></Tooltip>
-                                           <span
-                                               data-tooltip-id={`percent-medal-${entry.id || entry.trackName}`}
-                                               className={`text-${getMedal(entry.percent)?.color} text-lg`}
-                                               title={getMedal(entry.percent)?.label}
-                                           >
-                                               {getMedal(entry.percent)?.icon} {/* Corrected: Added curly braces */}
-                                           </span>
-                                      </>
+                  stats.map((track, index) => {
+                      const entryOrError = userEntriesByTrack.get(track.trackId); // Get entry or error from the map
+
+                      // Check if it's an error object
+                      const isError = entryOrError && typeof entryOrError === 'object' && 'error' in entryOrError;
+                      const errorMessage = isError ? entryOrError.error : null;
+                      const retryCount = isError ? entryOrError.retryCount : 0;
+
+
+                      // Determine display values
+                      const timeDisplay = isError ? 'Error' : formatTime((entryOrError as LeaderboardEntry)?.frames);
+                      const rankDisplay = isError ? 'Error' : (entryOrError && typeof entryOrError === 'object' && 'rank' in entryOrError && (entryOrError as LeaderboardEntry).rank !== undefined ? (entryOrError as LeaderboardEntry).rank : 'N/A');
+                       // Corrected percentDisplay logic for stricter type checking
+                      const percentDisplay = isError ? 'Error' : (entryOrError !== null && entryOrError !== undefined && typeof entryOrError === 'object' && 'percent' in entryOrError && typeof (entryOrError as any).percent === 'number' ? (entryOrError as any).percent?.toFixed(4) + '%' : 'N/A');
+                      const verifiedStateDisplay = isError ? undefined : (entryOrError as LeaderboardEntry)?.verifiedState;
+
+
+
+                      return (
+                          <motion.div
+                              key={track.trackId} // Use trackId as the stable key
+                              id={`track-${track.trackId}`} // Add unique ID for scrolling
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3, delay: index * 0.03 }} // Slightly faster animation delay
+                              className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-700 pb-3 last:border-b-0 last:pb-0"
+                          >
+                              <div className="flex-1 mr-4">
+                                  <p className="font-semibold text-blue-300">{track.trackName}</p>
+                                  {isError ? (
+                                      <div className="text-sm text-red-400 flex items-center gap-2">
+                                          <AlertCircle className="w-4 h-4" />
+                                          <span>{errorMessage || 'Failed to load'} ({retryCount}/{MAX_RETRY_ATTEMPTS} retries)</span> {/* Display retry count */}
+                                           {errorMessage !== 'Retrying...' && retryCount < MAX_RETRY_ATTEMPTS && ( // Only show retry button if not retrying and below max attempts
+                                              <Button
+                                                  variant="outline"
+                                                  size="sm" // Changed size back to sm for more padding
+                                                  onClick={() => handleRetryTrack(track.trackId, track.trackName, false)} // Pass false for isAutoRetry
+                                                  className="bg-red-900/30 text-red-300 border-red-500/30 hover:bg-red-800/50 px-2 py-1" // Added padding classes
+                                              >
+                                                  <RotateCw className="h-3 w-3 mr-1" /> {/* Added RotateCw icon */}
+                                                  Retry
+                                              </Button>
+                                          )}
+                                           {errorMessage === 'Retrying...' && ( // Show loading spinner when retrying
+                                               <RotateCw className="h-4 w-4 animate-spin text-red-400" />
+                                           )}
+                                            {retryCount >= MAX_RETRY_ATTEMPTS && errorMessage !== 'Retrying...' && (
+                                                <span className="text-xs text-gray-500 italic">Max retries reached.</span>
+                                            )}
+                                      </div>
+                                  ) : (
+                                      <p className="text-sm text-gray-300">Time: {timeDisplay}</p>
                                   )}
                               </div>
-                               <VerifiedStateIcon verifiedState={entry.verifiedState} />
-                          </div>
-                      </motion.div>
-                  ))
+                               {!isError && ( // Only show stats if not in an error state
+                                   <div className="flex items-center gap-4 mt-2 sm:mt-0">
+                                       <p className="text-sm text-gray-300">Rank: {rankDisplay}</p>
+                                       <p className="text-sm text-gray-300">Percent: {percentDisplay}</p>
+                                       <div className="flex items-center gap-1">
+                                           {/* Only show medals if there is an entry */}
+                                           {entryOrError && getPosMedal((entryOrError as LeaderboardEntry).position) && (
+                                                <>
+                                                    <Tooltip id={`pos-medal-${track.trackId}`}><span className="text-xs">{getPosMedal((entryOrError as LeaderboardEntry).position)?.label}</span></Tooltip>
+                                                    <span
+                                                        data-tooltip-id={`pos-medal-${track.trackId}`}
+                                                        className={`text-${getPosMedal((entryOrError as LeaderboardEntry).position)?.color} text-lg`}
+                                                        title={getPosMedal((entryOrError as LeaderboardEntry).position)?.label}
+                                                    >
+                                                        {getPosMedal((entryOrError as LeaderboardEntry).position)?.icon}
+                                                    </span>
+                                               </>
+                                           )}
+                                            {entryOrError && getMedal((entryOrError as LeaderboardEntry).percent) && (
+                                               <>
+                                                    <Tooltip id={`percent-medal-${track.trackId}`}><span className="text-xs">{getMedal((entryOrError as LeaderboardEntry).percent)?.label}</span></Tooltip>
+                                                    <span
+                                                        data-tooltip-id={`percent-medal-${track.trackId}`}
+                                                        className={`text-${getMedal((entryOrError as LeaderboardEntry).percent)?.color} text-lg`}
+                                                        title={getMedal((entryOrError as LeaderboardEntry).percent)?.label}
+                                                    >
+                                                        {getMedal((entryOrError as LeaderboardEntry).percent)?.icon}
+                                                    </span>
+                                               </>
+                                           )}
+                                       </div>
+                                        {/* Only show verified state if there is an entry */}
+                                        {entryOrError && typeof entryOrError === 'object' && !('error' in entryOrError) && <VerifiedStateIcon verifiedState={(entryOrError as LeaderboardEntry).verifiedState} />}
+                                   </div>
+                               )}
+                          </motion.div>
+                      );
+                  })
               ) : (
-                  <p className="text-gray-400">No entries found for these tracks.</p>
+                  <p className="text-gray-400">No tracks available.</p>
               )}
           </CardContent>
       </Card>
     );
   };
+
+    // Helper function to render a single best/worst stat entry with medals
+    const renderBestWorstEntry = (label: string, entry: LeaderboardEntryWithTrackName | undefined, metric: 'time' | 'rank' | 'percent') => {
+        if (!entry) return <p className="text-gray-400">{label}: N/A</p>;
+
+        let value: string | number = 'N/A';
+        let trackInfo = '';
+        // Removed tooltipId and data-tooltip attributes from here
+
+
+        if (metric === 'time') {
+            value = formatTime(entry.frames);
+            trackInfo = ` on ${entry.trackName}`;
+        } else if (metric === 'rank') {
+            value = entry.rank !== undefined ? entry.rank : 'N/A';
+             if (value !== 'N/A') trackInfo = ` on ${entry.trackName}`;
+        } else if (metric === 'percent') {
+            value = entry.percent !== undefined ? entry.percent.toFixed(4) + '%' : 'N/A';
+             if (value !== 'N/A') trackInfo = ` on ${entry.trackName}`;
+        }
+
+        // Get both position and mineral medals for this entry
+        const posMedal = getPosMedal(entry.position);
+        const percentMedal = getMedal(entry.percent);
+
+
+        return (
+            <p className="text-gray-300 flex items-center gap-1"> {/* Use flex and gap for inline items */}
+                {label}:
+                 <span className="font-semibold text-blue-300"> {/* Removed tooltip attributes */}
+                     {value}
+                 </span>
+                 {/* Removed Tooltip component for the value */}
+
+                {trackInfo && <span className="text-gray-400 text-sm italic">{trackInfo}</span>}
+
+                {/* Display both medals if they exist */}
+                {posMedal && (
+                    <>
+                        {/* Kept medal tooltips */}
+                        <Tooltip id={`best-worst-${metric}-${entry.trackId}-pos-medal`}><span className="text-xs">{posMedal.label}</span></Tooltip> {/* Tooltip for the position medal */}
+                        <span
+                             data-tooltip-id={`best-worst-${metric}-${entry.trackId}-pos-medal`} // Unique ID for position medal tooltip
+                            className={`text-${posMedal.color} text-lg`}
+                            title={posMedal.label || ''} // Add title for accessibility
+                        >
+                            {posMedal.icon}
+                        </span>
+                    </>
+                )}
+                 {percentMedal && (
+                    <>
+                        {/* Kept medal tooltips */}
+                        <Tooltip id={`best-worst-${metric}-${entry.trackId}-percent-medal`}><span className="text-xs">{percentMedal.label}</span></Tooltip> {/* Tooltip for the percent medal */}
+                        <span
+                            data-tooltip-id={`best-worst-${metric}-${entry.trackId}-percent-medal`} // Unique ID for percent medal tooltip
+                            className={`text-${percentMedal.color} text-lg`}
+                            title={percentMedal.label || ''} // Add title for accessibility
+                        >
+                            {percentMedal.icon}
+                        </span>
+                    </>
+                 )}
+            </p>
+        );
+    };
 
 
   return (
@@ -1006,7 +1433,15 @@ const UserViewer = () => {
                  </motion.div>
             )}
              {/* Display "User Information Unavailable" message if loading is done, resolvedUserId is set, and basicUserData is null or indicates not found */}
-             {!loading && resolvedUserId && (!basicUserData || basicUserData.name.startsWith('User Not Found') || basicUserData.name.startsWith('Name Unavailable') || basicUserData.name === 'Error fetching track data' || basicUserData.name.startsWith('User Info Unavailable')) && (
+             {!loading && resolvedUserId && basicUserData != null && (
+                // Explicitly check basicUserData is an object before accessing name
+                typeof basicUserData === 'object' && (
+                    basicUserData.name === 'Searching for user...' ||
+                    basicUserData.name === 'Fetching Name...' ||
+                    basicUserData.name === 'Error fetching track data' ||
+                    basicUserData.name.startsWith('User Info Unavailable')
+                )
+             ) && ( // Added the closing parenthesis and && for the conditional rendering
                  <motion.div
                      key="user-info-unavailable"
                      initial={{ opacity: 0, y: 20 }}
@@ -1023,13 +1458,13 @@ const UserViewer = () => {
                          </AlertDescription>
                      </Alert>
                  </motion.div>
-             )}
+            )}
         </AnimatePresence>
 
 
         {/* Conditional Display Area */}
         <AnimatePresence mode="wait"> {/* Use mode="wait" to ensure one section exits before the next enters */}
-            {displayMode === 'allTrackStats' && (officialTrackStats.length > 0 || communityTrackStats.length > 0 || officialAverageStats || communityAverageStats || overallAverageStats || Object.keys(medalTracks).length > 0) && (
+            {displayMode === 'allTrackStats' && (officialTracksWithEntries.length > 0 || communityTracksWithEntries.length > 0 || officialAverageStats || communityAverageStats || overallAverageStats || Object.keys(medalTracks).length > 0 || Object.keys(officialBestWorst).length > 0 || Object.keys(communityBestWorst).length > 0 || Object.keys(overallBestWorst).length > 0 || Array.from(userEntriesByTrack.values()).some(entry => entry && typeof entry === 'object' && 'error' in entry)) && ( // Also show if there are errors
                  <motion.div
                     key="all-track-stats" // Unique key for AnimatePresence
                     initial={{ opacity: 0, y: 20, scaleX: 0.95 }} // Added scaleX for widening effect
@@ -1062,7 +1497,7 @@ const UserViewer = () => {
                                                   <p className="font-semibold text-lg flex items-center justify-center gap-1">
                                                       {overallAverageStats.avgRank}
                                                        {/* Medals for Overall Average Rank (using raw average) */}
-                                                      {getPosMedal(overallAverageStats.rawAvgRank) && (
+                                                      {overallAverageStats?.rawAvgRank !== undefined && getPosMedal(overallAverageStats.rawAvgRank) && (
                                                            <>
                                                            <Tooltip id="avg-overall-rank-tip"><span className="text-xs">{getPosMedal(overallAverageStats.rawAvgRank)?.label}</span></Tooltip>
                                                            <span
@@ -1080,7 +1515,7 @@ const UserViewer = () => {
                                                   <p className="font-semibold text-lg flex items-center justify-center gap-1">
                                                       {overallAverageStats.avgPercent}
                                                       {/* Medals for Overall Average Percent (using raw average) */}
-                                                      {getMedal(overallAverageStats.rawAvgPercent) && (
+                                                      {overallAverageStats?.rawAvgPercent !== undefined && getMedal(overallAverageStats.rawAvgPercent) && (
                                                            <>
                                                                 <Tooltip id="avg-overall-percent-tip"><span className="text-xs">{getMedal(overallAverageStats.rawAvgPercent)?.label}</span></Tooltip>
                                                                 <span
@@ -1088,7 +1523,7 @@ const UserViewer = () => {
                                                                     className={`text-${getMedal(overallAverageStats.rawAvgPercent)?.color} text-xl`}
                                                                 >
                                                                     {getMedal(overallAverageStats.rawAvgPercent)?.icon}
-                                                                </span>
+                                                                </span >
                                                            </>
                                                        )}
                                                   </p>
@@ -1118,7 +1553,7 @@ const UserViewer = () => {
                                                     <p className="font-semibold text-lg flex items-center justify-center gap-1">
                                                         {officialAverageStats.avgRank}
                                                          {/* Medals for Official Average Rank (using raw average) */}
-                                                        {getPosMedal(officialAverageStats.rawAvgRank) && (
+                                                        {officialAverageStats?.rawAvgRank !== undefined && getPosMedal(officialAverageStats.rawAvgRank) && (
                                                              <>
                                                                   <Tooltip id="avg-official-rank-tip"><span className="text-xs">{getPosMedal(officialAverageStats.rawAvgRank)?.label}</span></Tooltip>
                                                                   <span
@@ -1136,14 +1571,14 @@ const UserViewer = () => {
                                                     <p className="font-semibold text-lg flex items-center justify-center gap-1">
                                                         {officialAverageStats.avgPercent} {/* Corrected: Added curly braces */}
                                                          {/* Medals for Official Average Percent (using raw average) */}
-                                                        {getMedal(officialAverageStats.rawAvgPercent) && (
+                                                        {officialAverageStats?.rawAvgPercent !== undefined && getMedal(officialAverageStats.rawAvgPercent) && (
                                                              <>
                                                                   <Tooltip id="avg-official-percent-tip"><span className="text-xs">{getMedal(officialAverageStats.rawAvgPercent)?.label}</span></Tooltip>
                                                                   <span
                                                                       data-tooltip-id="avg-official-percent-tip"
                                                                       className={`text-${getMedal(officialAverageStats.rawAvgPercent)?.color} text-xl`}
                                                                   >
-                                                                      {getMedal(officialAverageStats.rawAvgPercent)?.icon}
+                                                                      {getMedal(officialAverageStats.rawAvgPercent)?.icon} {/* Corrected: Fixed typo .ico to .icon */}
                                                                   </span>
                                                              </>
                                                          )}
@@ -1174,7 +1609,7 @@ const UserViewer = () => {
                                                     <p className="font-semibold text-lg flex items-center justify-center gap-1">
                                                         {communityAverageStats.avgRank}
                                                          {/* Medals for Community Average Rank (using raw average) */}
-                                                        {getPosMedal(communityAverageStats.rawAvgRank) && (
+                                                        {communityAverageStats?.rawAvgRank !== undefined && getPosMedal(communityAverageStats.rawAvgRank) && (
                                                              <>
                                                                   <Tooltip id="avg-community-rank-tip"><span className="text-xs">{getPosMedal(communityAverageStats.rawAvgRank)?.label}</span></Tooltip>
                                                                   <span
@@ -1192,14 +1627,14 @@ const UserViewer = () => {
                                                     <p className="font-semibold text-lg flex items-center justify-center gap-1">
                                                         {communityAverageStats.avgPercent}
                                                          {/* Medals for Community Average Percent (using raw average) */}
-                                                        {getMedal(communityAverageStats.rawAvgPercent) && (
+                                                        {communityAverageStats?.rawAvgPercent !== undefined && getMedal(communityAverageStats.rawAvgPercent) && (
                                                              <>
                                                                   <Tooltip id="avg-community-percent-tip"><span className="text-xs">{getMedal(communityAverageStats.rawAvgPercent)?.label}</span></Tooltip>
                                                                   <span
                                                                       data-tooltip-id="avg-community-percent-tip"
                                                                       className={`text-${getMedal(communityAverageStats.rawAvgPercent)?.color} text-xl`}
                                                                   >
-                                                                      {getMedal(communityAverageStats.rawAvgPercent)?.icon} {/* Corrected: Fixed typo .ico to .icon */}
+                                                                      {getMedal(communityAverageStats.rawAvgPercent)?.icon}
                                                                   </span>
                                                              </>
                                                          )}
@@ -1214,16 +1649,102 @@ const UserViewer = () => {
                                         <p className="text-gray-400 text-center">No average stats available (user has no entries on any tracks).</p>
                                    )}
 
-                              </CardContent>
-                          </Card>
+                             </CardContent>
+                         </Card>
                      )}
+
+                     {/* Best and Worst Performances Display */}
+                     {(Object.keys(overallBestWorst).length > 0 || Object.keys(officialBestWorst).length > 0 || Object.keys(communityBestWorst).length > 0) && (
+                         <Card className="bg-gray-800/50 text-white border-purple-500/30">
+                             <CardHeader>
+                                 <CardTitle className="text-purple-400">Best & Worst Performances</CardTitle>
+                             </CardHeader>
+                             <CardContent className="space-y-4"> {/* Use space-y-4 for vertical spacing between sections */}
+                                 {/* Overall Best/Worst */}
+                                 {Object.keys(overallBestWorst).length > 0 && (
+                                     <div>
+                                         <h4 className="text-lg font-semibold text-blue-300 mb-2">Overall (All Tracks with Entries)</h4>
+                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                             <div>
+                                                 <p className="font-semibold text-gray-300 mb-1">Best:</p>
+                                                 {renderBestWorstEntry('Time', overallBestWorst.bestTime, 'time')}
+                                                 {renderBestWorstEntry('Rank', overallBestWorst.bestRank, 'rank')}
+                                                 {renderBestWorstEntry('Percent', overallBestWorst.bestPercent, 'percent')}
+                                             </div>
+                                             <div>
+                                                 <p className="font-semibold text-gray-300 mb-1">Worst:</p>
+                                                 {renderBestWorstEntry('Time', overallBestWorst.worstTime, 'time')}
+                                                 {renderBestWorstEntry('Rank', overallBestWorst.worstRank, 'rank')}
+                                                 {renderBestWorstEntry('Percent', overallBestWorst.worstPercent, 'percent')}
+                                             </div>
+                                         </div>
+                                     </div>
+                                 )}
+
+                                 {/* Separator */}
+                                 {(Object.keys(overallBestWorst).length > 0 && (Object.keys(officialBestWorst).length > 0 || Object.keys(communityBestWorst).length > 0)) && <hr className="border-gray-700" />}
+
+                                 {/* Official Tracks Best/Worst */}
+                                  {Object.keys(officialBestWorst).length > 0 && (
+                                     <div>
+                                         <h4 className="text-lg font-semibold text-blue-300 mb-2">Official Tracks (with Entries)</h4>
+                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                             <div>
+                                                 <p className="font-semibold text-gray-300 mb-1">Best:</p>
+                                                 {renderBestWorstEntry('Time', officialBestWorst.bestTime, 'time')}
+                                                 {renderBestWorstEntry('Rank', officialBestWorst.bestRank, 'rank')}
+                                                 {renderBestWorstEntry('Percent', officialBestWorst.bestPercent, 'percent')}
+                                             </div>
+                                             <div>
+                                                 <p className="font-semibold text-gray-300 mb-1">Worst:</p>
+                                                 {renderBestWorstEntry('Time', officialBestWorst.worstTime, 'time')}
+                                                 {renderBestWorstEntry('Rank', officialBestWorst.worstRank, 'rank')}
+                                                 {renderBestWorstEntry('Percent', officialBestWorst.worstPercent, 'percent')}
+                                             </div>
+                                         </div>
+                                     </div>
+                                 )}
+
+                                 {/* Separator */}
+                                 {(Object.keys(officialBestWorst).length > 0 && Object.keys(communityBestWorst).length > 0) && <hr className="border-gray-700" />}
+
+                                 {/* Community Tracks Best/Worst */}
+                                  {Object.keys(communityBestWorst).length > 0 && (
+                                     <div>
+                                         <h4 className="text-lg font-semibold text-blue-300 mb-2">Community Tracks (with Entries)</h4>
+                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                             <div>
+                                                 <p className="font-semibold text-gray-300 mb-1">Best:</p>
+                                                 {renderBestWorstEntry('Time', communityBestWorst.bestTime, 'time')}
+                                                 {renderBestWorstEntry('Rank', communityBestWorst.bestRank, 'rank')}
+                                                 {renderBestWorstEntry('Percent', communityBestWorst.bestPercent, 'percent')}
+                                             </div>
+                                             <div>
+                                                 <p className="font-semibold text-gray-300 mb-1">Worst:</p>
+                                                 {renderBestWorstEntry('Time', communityBestWorst.worstTime, 'time')}
+                                                 {renderBestWorstEntry('Rank', communityBestWorst.worstRank, 'rank')}
+                                                 {renderBestWorstEntry('Percent', communityBestWorst.worstPercent, 'percent')}
+                                             </div>
+                                         </div>
+                                     </div>
+                                 )}
+
+                                  {/* Message if no best/worst stats are available */}
+                                   {!(Object.keys(overallBestWorst).length > 0 || Object.keys(officialBestWorst).length > 0 || Object.keys(communityBestWorst).length > 0) && (
+                                        <p className="text-gray-400 text-center">No best/worst stats available (user has no entries on any tracks).</p>
+                                   )}
+
+                             </CardContent>
+                         </Card>
+                     )}
+
 
                      {/* Medal Counts Display */}
                      {Object.keys(medalTracks).length > 0 && ( // Use medalTracks here
                          <Card className="bg-gray-800/50 text-white border-purple-500/30">
                              <CardHeader>
                                  <CardTitle className="text-purple-400">Medal Counts</CardTitle>
-                                 <CardDescription className="text-gray-300">Hover over a medal to see the tracks you earned it on.</CardDescription> {/* Updated description */}
+                                 <CardDescription className="text-gray-300">Hover over a medal to see the tracks you earned it on. Click a track name to jump to its entry below.</CardDescription> {/* Updated description */}
                              </CardHeader>
                              <CardContent className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                                  {/* Define the order of medals for display */}
@@ -1275,9 +1796,28 @@ const UserViewer = () => {
                                                          transition={{ duration: 0.2 }}
                                                          className="mt-2 text-sm text-gray-300 w-full text-center space-y-1 list-none p-0" // Added list-none and p-0 for styling
                                                      >
-                                                         {tracks.map(track => (
-                                                             <li key={track.trackName} className="truncate">{track.trackName}</li>
-                                                         ))}
+                                                         {tracks.map(track => {
+                                                             // Determine which metric to display based on medal type
+                                                             const displayMetric = medal?.type === 'rank' ?
+                                                                 (track.rank !== undefined ? `Rank: ${track.rank}` : 'Rank: N/A') :
+                                                                 (track.percent !== undefined ? `Percent: ${track.percent.toFixed(4)}%` : 'Percent: N/A');
+
+                                                             return (
+                                                                 <li key={track.trackId} className="truncate"> {/* Use trackId as key for consistency */}
+                                                                     {/* Added data-tooltip-id and data-tooltip-content for react-tooltip */}
+                                                                     <span
+                                                                         className="cursor-pointer hover:underline" // Indicate clickable and add hover effect
+                                                                         data-tooltip-id={`track-tooltip-${track.trackId}`} // Unique ID for each track tooltip
+                                                                         data-tooltip-content={`${displayMetric}`} // Set the tooltip text to ONLY the metric
+                                                                         onClick={() => scrollToTrack(track.trackId)} // Add onClick handler
+                                                                     >
+                                                                         {track.trackName}
+                                                                     </span>
+                                                                      {/* Add a Tooltip component for each track name */}
+                                                                     <Tooltip id={`track-tooltip-${track.trackId}`} place="top" className="!text-xs !bg-gray-700 !text-white" />
+                                                                 </li>
+                                                             );
+                                                         })}
                                                      </motion.ul>
                                                  )}
                                              </AnimatePresence>
@@ -1290,10 +1830,12 @@ const UserViewer = () => {
 
 
                      {/* Official Track Stats List */}
-                     {renderTrackStatsList(sortedOfficialTrackStats as LeaderboardEntryWithTrackName[], "Official Track Entries", officialSortBy, setOfficialSortBy)} {/* Pass sorted data and sorting state */}
+                     {/* Pass the full list of official tracks and the map of user entries */}
+                     {renderTrackStatsList(sortedTrackDisplayStats.official, "Official Track Entries", officialSortBy, setOfficialSortBy, reverseOfficialSort, setReverseOfficialSort)} {/* Pass reverse state and setter */}
 
                      {/* Community Track Stats List */}
-                     {renderTrackStatsList(sortedCommunityTrackStats as LeaderboardEntryWithTrackName[], "Community Track Entries", communitySortBy, setCommunitySortBy)} {/* Pass sorted data and sorting state */}
+                      {/* Pass the full list of community tracks and the map of user entries */}
+                     {renderTrackStatsList(sortedTrackDisplayStats.community, "Community Track Entries", communitySortBy, setCommunitySortBy, reverseCommunitySort, setReverseCommunitySort)} {/* Pass reverse state and setter */}
 
                  </motion.div>
             )}

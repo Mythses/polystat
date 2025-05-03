@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button'; // Assuming Button is needed elsewhere
 import { Input } from '@/components/ui/input'; // Assuming Input is needed elsewhere
@@ -42,7 +41,7 @@ const PREDEFINED_TRACKS = [
   { name: 'Winter 3', id: '7a0e04bfe09e1bead36ddd2f7e61d32fd6c1e55e907d60edc6ccd3e17532e1f7' },
   { name: 'Winter 4', id: '39b2d610aeed5d193f3346291fc4000ef23030e5817f471522f167b9e74ed1f5' },
   { name: 'Desert 1', id: '56a5e13736d871f92863cb60ad690e78547f459520e61285fde05bd02bd2d349' },
-  { name: 'Desert 2', id: '7425633d9f77c41bbf7486fdd2b3a2ce04aa26bacc870a0a32929b4c7e33a8cf3' },
+  { name: 'Desert 2', id: '7425633d9f77c41bbf7486fdd2b3a2ce04aa26bacc870a032929b4c7e33a8cf3' },
   { name: 'Desert 3', id: 'b84107a25d159c6544092903da12b61573971da5a6b3c917e55be30486ccaddd' },
   { name: 'Desert 4', id: '29b6343e99552c610e24a5bfefc8a240800ed151600c0dc8f5c0f3dce334d322' },
   { name: '90xRESET', id: '4d0f964b159d51d6906478bbb87e1edad21b0f1eb2972af947be34f2d8c49ae9' },
@@ -52,14 +51,14 @@ const PREDEFINED_TRACKS = [
   { name: "Hyperion's Sanctuary", id: 'b41ac84904b60d00efa5ab8bb60f42c929c16d8ebbfe2f77126891fcddab9c1c' },
   { name: 'Opal Palace - Repolished', id: '89f1a70d0e6be8297ec340a378b890f3fed7d0e20e3ef15b5d32ef4ef7ff1701' },
   { name: 'Snow Park', id: '2978b99f058cb3a2ce6f97c435c803b8d638400532d7c79028b2ec3d5e093882' },
-  { name: 'Winter Hollow', id: '2046c377ac7ec5326b263c4657f30b66ba856257ddc317a866e3e7f66a73929' },
-  { name: 'Arabica', id: '1aadcef252749318227d5cd4ce61a4a71526087857857104fd57697b63102e8a' },
-  { name: 'Clay temples', id: '773eb0b02b97a72f3e482738cda7a5292294800497e16d9366e4f4c88a6f4e2d' },
+  { name: 'Winter Hollow', id: '2046c377ac7ec5326b263c46587f30b66ba856257ddc317a866e3e7f66a73929' },
+  { name: 'Arabica', id: '1aadcef252749318227d5cd4ce61a4a71526087857104fd57697b6fc63102e8a' },
+  { name: 'Clay temples', id: '773eb0b02b97a72f3e482738cda7a5292294800497e16d9366e4f4c88a6f4e2d' }, // Corrected ID
   { name: 'DESERT STALLION', id: '932da81567f2b223fa1a52d88d6db52016600c5b9df02218f06c9eb832ecddeb' },
   { name: 'Las Calles', id: '97da746d9b3ddd5a861fa8da7fcb6f6402ffa21f8f5cf61029d7a947bad76290' },
   { name: 'Last Remnant', id: '19335bb082dfde2af4f7e73e812cd54cee0039a9eadf3793efee3ae3884ce423' },
   { name: 'Malformations', id: 'bc7d29657a0eb2d0abb3b3639edcf4ade61705132c7ca1b56719a7a110096afd' },
-  { name: 'Sandline Ultimatum', id: 'faed71cf26ba4d183795ecc93e3d1b39e151d664272b512692b0f4f323ff5' },
+  { name: 'Sandline Ultimatum', id: 'faed71cf26ba4d183795ecc93e3d1b39e191e51d664272b512692b0f4f323ff5' },
 ];
 
 // Animation variants for smoother transitions
@@ -129,7 +128,8 @@ const getMedal = (percent: number | undefined) => {
 const getPosMedal = (position: number | undefined) => {
   if (position === undefined || typeof position !== 'number' || isNaN(position)) return null; // Added isNaN check
   if (position === 1) return { icon: '✦', label: 'WR', color: 'black', type: 'rank' };
-  if (position <= 5) return { icon: '✦', label: 'Podium', color: 'white', type: 'rank' };
+  // Changed podium color from 'white' to 'purple'
+  if (position <= 5) return { icon: '✦', label: 'Podium', color: 'purple', type: 'rank' };
   return null;
 };
 
@@ -150,8 +150,8 @@ const Leaderboard = () => {
   const [onlyVerified, setOnlyVerified] = useState(true);
   const [recordingData, setRecordingData] = useState<(RecordingData | null)[] | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
-  // Corrected useRef initialization
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [userNotFoundOnTrack, setUserNotFoundOnTrack] = useState(false); // New state for user not found on track
 
   const formatTime = (frames: number) => {
     const h = Math.floor(frames / 3600000);
@@ -168,6 +168,7 @@ const Leaderboard = () => {
     setCurrentPage(page);
     setStatsData(null); // Clear previous leaderboard data to show loading state
     setRecordingData(null); // Clear previous recording data
+    setUserNotFoundOnTrack(false); // Reset user not found state
 
     try {
       const skip = (page - 1) * AMOUNT;
@@ -224,10 +225,12 @@ const Leaderboard = () => {
   const fetchAndSetUserData = useCallback(async (targetUserId: string, targetTrackId: string, targetOnlyVerified: boolean) => {
        setUserData(null); // Clear previous user data
        setUserPage(null); // Clear user page
+       setUserNotFoundOnTrack(false); // Reset user not found state
 
        if (!targetUserId || !targetTrackId) {
            setUserData(null);
            setUserPage(null);
+           setUserNotFoundOnTrack(false);
            return null; // Return null if input is invalid
        }
 
@@ -238,12 +241,23 @@ const Leaderboard = () => {
 
            if (!initialUserResponse.ok) {
                console.warn(`Initial user fetch failed: ${initialUserResponse.status}`);
+               // This might be a network error, not necessarily user not found
                setUserData(null);
                setUserPage(null);
+               setUserNotFoundOnTrack(false); // Don't set true for general fetch error
                return null;
            }
 
            const initialUserData: LeaderboardData = await initialUserResponse.json();
+
+           // Check if userEntry is null in the initial fetch result
+           if (!initialUserData.userEntry) {
+               console.log(`User ${targetUserId} not found on track ${targetTrackId}.`);
+               setUserData(null);
+               setUserPage(null);
+               setUserNotFoundOnTrack(true); // Set user not found state to true
+               return null; // User not found, stop here
+           }
 
            // Extract user position and total entries from the initial fetch
            const userPosition = initialUserData.userEntry && typeof initialUserData.userEntry.position === 'number'
@@ -262,18 +276,19 @@ const Leaderboard = () => {
                console.warn(`Specific user fetch failed: ${specificUserResponse.status}`);
                setUserData(null);
                setUserPage(null);
+               setUserNotFoundOnTrack(false); // Don't set true for general fetch error
                return null;
            }
 
            const specificUserData: LeaderboardData = await specificUserResponse.json();
 
-           // Ensure entries array exists and contains at least one entry
-           if (specificUserData.entries && specificUserData.entries.length > 0) {
+           // Ensure entries array exists and contains at least one entry, and that it matches the target user
+           if (specificUserData.entries && specificUserData.entries.length > 0 && specificUserData.entries[0].userId === targetUserId) {
                const userEntry = specificUserData.entries[0]; // The user's entry should be the first (and only) one
 
                 // Use the userPosition from the initial fetch for rank calculation
                 const rank = userPosition;
-                // Calculate percent only if totalEntries > 0 and rank is a valid number
+                // Calculate percent only if totalEntries > 0 && rank is a valid number
                 const percent = totalEntries > 0 && typeof rank === 'number' ? (rank / totalEntries) * 100 : undefined;
 
 
@@ -295,11 +310,13 @@ const Leaderboard = () => {
                 } else {
                     setUserPage(null);
                 }
+                setUserNotFoundOnTrack(false); // User found, ensure this is false
                 return finalUserEntry; // Return the fetched user data
            } else {
-               console.warn('Specific user fetch returned no entries.');
+               console.warn('Specific user fetch returned no entries or mismatched user.');
                setUserData(null);
                setUserPage(null);
+               setUserNotFoundOnTrack(true); // Set user not found state to true
                return null;
            }
 
@@ -307,6 +324,8 @@ const Leaderboard = () => {
            console.error('Error in fetchAndSetUserData:', err);
            setUserData(null);
            setUserPage(null);
+           setUserNotFoundOnTrack(false); // Don't set true for general fetch error
+           setError(err.message || 'An error occurred while fetching user data.'); // Set a general error for fetch issues
            return null;
        } finally {
            // This finally block is not needed here as loading state is managed by processUserInputAndFetchData
@@ -322,7 +341,7 @@ const Leaderboard = () => {
       setUserData(null); // Clear user data when input changes
       setStatsData(null); // Clear stats data when input changes
       setRecordingData(null); // Clear recording data when input changes
-
+      setUserNotFoundOnTrack(false); // Reset user not found state
 
       if (!userInput || !trackId) { // Track ID is now required for all input types
          if (!userInput) {
@@ -367,7 +386,8 @@ const Leaderboard = () => {
             if (data.entries && data.entries.length > 0) {
               targetUserId = data.entries[0].userId;
             } else {
-              processingError = `No user found at rank ${rank}.`;
+              processingError = `No user found at rank ${rank} on this track.`; // More specific message
+              setUserNotFoundOnTrack(true); // Set user not found state
             }
           } catch (err: any) {
             processingError = err.message || 'An error occurred while fetching user by rank.';
@@ -393,14 +413,20 @@ const Leaderboard = () => {
 
           // Then fetch leaderboard data for the first page, including the targetUserId
           // Pass the targetUserId to fetchLeaderboardPage so it can potentially highlight the user
-          fetchLeaderboardPage(1, trackId, onlyVerified, targetUserId);
+          // Only fetch leaderboard if user data fetch didn't indicate user not found on track
+          if (!userNotFoundOnTrack) { // Check the state variable
+             fetchLeaderboardPage(1, trackId, onlyVerified, targetUserId);
+          } else {
+              setLoading(false); // Stop loading if user not found on track
+          }
+
 
       }
       else {
           setLoading(false);
       }
 
-  }, [userInput, userInputType, trackId, onlyVerified, fetchAndSetUserData, fetchLeaderboardPage, PROXY_URL, API_BASE_URL, VERSION]); // Dependencies for processUserInputAndFetchData
+  }, [userInput, userInputType, trackId, onlyVerified, fetchAndSetUserData, fetchLeaderboardPage, PROXY_URL, API_BASE_URL, VERSION, userNotFoundOnTrack]); // Added userNotFoundOnTrack to dependencies
 
 
   const handlePageChange = (newPage: number) => {
@@ -469,21 +495,27 @@ const Leaderboard = () => {
               key={i}
               style={{ backgroundColor: hex, cursor: 'pointer' }}
               className="w-4 h-4 rounded-full"
-              title={hex}
+              // Add tooltip attributes
+              data-tooltip-id="colorTooltip"
+              data-tooltip-content={hex}
               onClick={() => copyToClipboard(hex)}
               whileHover={{ scale: 1.2 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
             />
           );
         })}
+        {/* Car Colors Copy Button - Styled like User ID/Recording copy buttons */}
         <Button
-          variant="link"
+          variant="ghost" // Use ghost variant
           size="sm"
           onClick={() => copyToClipboard(carColors)}
-          className="text-blue-400 font-mono text-xs truncate p-0 relative"
+          className="p-1 h-auto text-gray-400 hover:text-white hover:bg-gray-700/20 flex-shrink-0" // Added hover background
+          title="Copy Car Colors"
         >
           <Copy className="w-3 h-3" />
         </Button>
+        {/* Tooltip for color circles */}
+        <Tooltip id="colorTooltip" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: "white", fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
       </div>
     );
   };
@@ -499,26 +531,27 @@ const Leaderboard = () => {
   };
 
 
-  const displayRecording = (rec: string | null) => {
-    const display = rec ? (
-      <Button
-        variant="link"
-        className="text-blue-400 font-mono text-sm truncate p-0 relative"
-        onClick={() => { if (rec) { copyToClipboard(rec); } }}
-      >
-        <span className="flex items-center gap-1">
-          <File className="w-4 h-4 inline-block" />
-          {rec}
-        </span>
-      </Button>
-    ) : (
-      <span className="text-gray-400">No Data</span>
-    );
+  const displayRecording = (rec: string | null, isUserEntry: boolean, textColorClass: string = 'text-blue-400') => {
+    if (!rec) {
+      return <span className="text-gray-400">No Data</span>;
+    }
 
     return (
-      <>
-        {display}
-      </>
+      <div className="flex items-center gap-2 overflow-hidden"> {/* Flex container for text and button */}
+        <span className={cn("font-mono text-sm truncate", textColorClass)}> {/* Applied text color class */}
+          {rec}
+        </span>
+        {/* Recording Data Copy Button - Added grey/transparent hover */}
+        <Button
+          variant="ghost" // Use ghost variant for a subtle button
+          size="sm"
+          onClick={() => copyToClipboard(rec)}
+          className="p-1 h-auto text-gray-400 hover:text-white hover:bg-gray-700/20 flex-shrink-0" // Added hover background
+          title="Copy Recording Data"
+        >
+          <Copy className="w-3 h-3" />
+        </Button>
+      </div>
     );
   };
 
@@ -548,7 +581,7 @@ const Leaderboard = () => {
         transition={{ duration: 0.5 }}
         className={cn(
           "w-full space-y-6", // Base classes
-          statsData ? "max-w-6xl" : "max-w-2xl" // Conditionally apply max-width
+          statsData || userNotFoundOnTrack ? "max-w-6xl" : "max-w-2xl" // Conditionally apply max-width based on statsData or userNotFoundOnTrack
         )}
         layout // Enable layout animations for smooth size changes
       >
@@ -591,6 +624,7 @@ const Leaderboard = () => {
                               setError(null);
                               setUserPage(null); // Clear user page
                               setGoToPosition(''); // Clear go to position
+                              setUserNotFoundOnTrack(false); // Reset user not found state
                           }} defaultValue={userInputType}>
                               <SelectTrigger className="w-[180px] bg-black/20 text-white border-purple-500/30 focus:ring-purple-500/50">
                                   <SelectValue placeholder="Select Input Type" />
@@ -775,15 +809,15 @@ const Leaderboard = () => {
                className="flex items-center justify-center gap-2 text-yellow-400 text-sm text-center mt-2 p-3 border border-yellow-400 rounded-md bg-yellow-400/20"
              >
                  <TriangleAlert className="h-4 w-4" /> {/* Changed icon */}
-                 <span>Suggestion: Please double-check the input value and ensure the correct Input Type is selected (User ID, User Token, or Rank).</span>
+                 <span>Suggestion: Please double-check the input value and ensure the correct input type is selected (User ID, User Token, or Rank).</span>
              </motion.div>
            )}
          </AnimatePresence>
 
 
-         {/* Stats and Leaderboard Section - Render only when statsData is available */}
+         {/* Stats and Leaderboard Section - Render only when statsData is available OR userNotFoundOnTrack is true */}
          <AnimatePresence mode="wait"> {/* Use mode="wait" to finish exit animation before new enters */}
-           {(statsData && statsData.entries) && (
+           {(statsData && statsData.entries) || userNotFoundOnTrack ? ( // Render if statsData is available OR userNotFoundOnTrack is true
              <motion.div
                key="leaderboard-results" // Unique key for AnimatePresence
                initial={{ opacity: 0, y: 50 }}
@@ -794,7 +828,35 @@ const Leaderboard = () => {
                layout // Enable layout animations for smooth size changes
              >
                {/* User Stats Card */}
-               {userData ? (
+               {/* Conditional rendering for User Stats */}
+               {loading ? (
+                   <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg w-full">
+                       <CardHeader>
+                           <CardTitle className="flex items-center gap-2 text-purple-400">
+                               <User className="w-5 h-5" />
+                               Your Stats
+                           </CardTitle>
+                       </CardHeader>
+                       <CardContent>
+                           <p>Loading user stats...</p>
+                       </CardContent>
+                   </Card>
+               ) : error ? (
+                    // Error message is already handled by the main error alert
+                    null
+               ) : userNotFoundOnTrack ? (
+                   <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg w-full">
+                       <CardHeader>
+                           <CardTitle className="flex items-center gap-2 text-purple-400">
+                               <User className="w-5 h-5" />
+                               Your Stats
+                           </CardTitle>
+                       </CardHeader>
+                       <CardContent>
+                           <p>User not found on this track.</p> {/* Specific message */}
+                       </CardContent>
+                   </Card>
+               ) : userData ? (
                  <>
                    <div className="text-center">
                      <p className="text-lg sm:text-xl font-semibold text-purple-300 tracking-wide mb-2 flex items-center justify-center gap-2">
@@ -803,58 +865,115 @@ const Leaderboard = () => {
                      </p>
                      <p className="text-gray-400">Your personal performance.</p>
                    </div>
-                   <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg w-full">
-                     <CardHeader>
-                       <CardTitle className="text-2xl sm:text-3xl font-bold text-purple-400 text-center flex items-center justify-center gap-2 flex-wrap">
-                         {/* Display rank with fallback */}
-                         {getPosMedal(userData.rank as number | undefined) ? (
-                           <>
-                             <span data-tooltip-id="statsPosMedal"
-                               data-tooltip-content={getPosMedal(userData.rank as number | undefined)?.label} style={{ color: getPosMedal(userData.rank as number | undefined)?.color }}>
-                               {getPosMedal(userData.rank as number | undefined)?.icon}
-                             </span>
-                             <Tooltip id="statsPosMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getPosMedal(userData.percent as number | undefined)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
-                           </>
-                         ) : null}
-                         <span className='truncate'>{userData.name || 'Name Unavailable'}</span>
-                         {/* Display medal based on percent with fallback */}
-                         {getMedal(userData.percent as number | undefined) ? (
-                           <>
-                             <span data-tooltip-id="statsMedal"
-                               data-tooltip-content={getMedal(userData.percent as number | undefined)?.label} style={{ color: getMedal(userData.percent as number | undefined)?.color }}>
-                               {getMedal(userData.percent as number | undefined)?.icon}
-                             </span>
-                             <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: getMedal(userData.percent as number | undefined)?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
-                           </>
-                         ) : null}
-                       </CardTitle>
-                       <CardDescription className="text-xl text-blue-400 text-center">
-                         {formatTime(userData.frames)}
-                       </CardDescription>
-                     </CardHeader>
-                     <CardContent className="space-y-4">
-                       <div className="grid grid-cols-1 gap-4">
-                         {/* Display rank with fallback */}
-                         <p><span className="font-semibold text-gray-300">Rank:</span> {typeof userData.rank === 'number' ? userData.rank : 'N/A'}</p>
-                          {/* Display top % with fallback and formatting */}
-                         <p><span className="font-semibold text-gray-300">Top:</span> {typeof userData.percent === 'number' ? `${userData.percent.toFixed(4)}%` : 'N/A'}</p>
-                         <p><span className="font-semibold text-gray-300">User ID:</span> <span className="break-all">{userData.userId || 'ID Unavailable'}</span></p> {/* Added break-all */}
-                         <p><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(userData.carColors || '')}</p>
-                         <p><span className="font-semibold text-gray-300">Frames:</span> <span className="text-purple-400">{userData.frames} ({formatTime(userData.frames)})</span></p>
-                         <p className="flex items-center gap-1"><span className="font-semibold text-gray-300">Verified:</span><VerifiedStateIcon verifiedState={userData.verifiedState} /></p>
-                       </div>
-                       <div className="space-y-2">
-                         <p className="font-semibold text-gray-300">Recording:</p>
-                         <Card className="bg-gray-800/50 border-gray-700 w-full">
-                           <CardContent className="p-4 overflow-x-auto no-scroll">
-                             {recordingData && recordingData[0] ? displayRecording(recordingData[0].recording) : displayRecording(null)}
-                           </CardContent>
-                         </Card>
-                       </div>
-                     </CardContent>
-                   </Card>
+                   {/* Determine box and text styles for Your Stats based on userData */}
+                   {(() => {
+                       const medal = getMedal(userData.percent as number | undefined);
+                       const posMedal = getPosMedal(userData.rank as number | undefined);
+                       let userStatsBoxStyle = 'bg-black/20 border-purple-500/30';
+                       let userStatsDataTextStyle = 'text-blue-400';
+
+                       if (posMedal && posMedal.color === 'black') { // WR
+                           userStatsBoxStyle = 'bg-black/20 border-2 border-black/50';
+                           userStatsDataTextStyle = 'text-gray-100';
+                       } else if (posMedal && posMedal.color === 'purple') { // Podium (Updated condition to 'purple')
+                           userStatsBoxStyle = 'bg-purple-500/20 border-2 border-purple-500/50';
+                           userStatsDataTextStyle = 'text-purple-300';
+                       } else if (medal) { // Mineral medals
+                           switch (medal.color) {
+                               case 'cyan':
+                                   userStatsBoxStyle = 'bg-cyan-500/20 border-2 border-cyan-500/50';
+                                   userStatsDataTextStyle = 'text-cyan-300';
+                                   break;
+                               case 'green':
+                                   userStatsBoxStyle = 'bg-green-500/20 border-2 border-green-500/50';
+                                   userStatsDataTextStyle = 'text-green-300';
+                                   break;
+                               case 'gold': // Using yellow for gold
+                                   userStatsBoxStyle = 'bg-yellow-500/20 border-2 border-yellow-500/50';
+                                   userStatsDataTextStyle = 'text-yellow-300';
+                                   break;
+                               case 'silver': // Using gray for silver
+                                   userStatsBoxStyle = 'bg-gray-400/20 border-2 border-gray-400/50';
+                                   userStatsDataTextStyle = 'text-gray-200';
+                                   break;
+                               case 'bronze': // Using orange for bronze
+                                   userStatsBoxStyle = 'bg-orange-700/20 border-2 border-orange-700/50';
+                                   userStatsDataTextStyle = 'text-orange-300';
+                                   break;
+                               default: // Fallback
+                                   userStatsBoxStyle = 'bg-black/20 border-purple-500/30';
+                                   userStatsDataTextStyle = 'text-blue-400';
+                           }
+                       }
+
+                       // Simplified iconColor calculation
+                       const iconColor = posMedal?.color;
+
+                       return (
+                           <Card className={cn("text-white shadow-lg w-full", userStatsBoxStyle)}>
+                               <CardHeader>
+                                   <CardTitle className={cn("text-2xl sm:text-3xl font-bold text-center flex items-center justify-center gap-2 flex-wrap", userStatsDataTextStyle)}>
+                                       {/* Display rank medal */}
+                                       {posMedal ? (
+                                           <>
+                                               <span data-tooltip-id="statsPosMedal"
+                                                     data-tooltip-content={posMedal?.label} style={{ color: iconColor }}>
+                                                   {posMedal?.icon}
+                                               </span>
+                                               <Tooltip id="statsPosMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: iconColor, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
+                                           </>
+                                       ) : null}
+                                       <span className='truncate'>{userData.name || 'Name Unavailable'}</span>
+                                       {/* Display mineral medal */}
+                                       {medal ? (
+                                           <>
+                                               <span data-tooltip-id="statsMedal"
+                                                     data-tooltip-content={medal?.label} style={{ color: medal?.color }}>
+                                                   {medal?.icon}
+                                               </span>
+                                               <Tooltip id="statsMedal" className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: medal?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
+                                           </>
+                                       ) : null}
+                                   </CardTitle>
+                                   <CardDescription className={cn("text-xl text-center", userStatsDataTextStyle)}>
+                                       {formatTime(userData.frames)}
+                                   </CardDescription>
+                               </CardHeader>
+                               <CardContent className="space-y-4">
+                                   <div className="grid grid-cols-1 gap-4">
+                                       <p><span className="font-semibold text-gray-300">Rank:</span> <span className={userStatsDataTextStyle}>{typeof userData.rank === 'number' ? userData.rank : 'N/A'}</span></p>
+                                       <p><span className="font-semibold text-gray-300">Top:</span> <span className={userStatsDataTextStyle}>{typeof userData.percent === 'number' ? `${userData.percent.toFixed(4)}%` : 'N/A'}</span></p>
+                                       <div className="flex items-center gap-2">
+                                           <p className="font-semibold text-gray-300">User ID:</p>
+                                           <span className={cn('break-all', userStatsDataTextStyle)}>{userData.userId || 'ID Unavailable'}</span>
+                                           {userData.userId && (
+                                               <Button
+                                                   variant="ghost"
+                                                   size="sm"
+                                                   onClick={() => copyToClipboard(userData.userId)}
+                                                   className="p-1 h-auto text-gray-400 hover:text-white hover:bg-gray-700/20"
+                                                   title="Copy User ID"
+                                               >
+                                                   <Copy className="w-3 h-3" />
+                                               </Button>
+                                           )}
+                                       </div>
+                                       <p><span className="font-semibold text-gray-300">Car Colors:</span> {displayCarColors(userData.carColors || '')}</p>
+                                       <p><span className="font-semibold text-gray-300">Frames:</span> <span className={userStatsDataTextStyle}>{userData.frames} ({formatTime(userData.frames)})</span></p>
+                                       <p className="flex items-center gap-1"><span className="font-semibold text-gray-300">Verified:</span><VerifiedStateIcon verifiedState={userData.verifiedState} /></p>
+                                   </div>
+                                   {/* Recording data integrated directly */}
+                                   <div className="space-y-2">
+                                       <p className="font-semibold text-gray-300">Recording:</p>
+                                       {recordingData && recordingData[0] ? displayRecording(recordingData[0].recording, true, userStatsDataTextStyle) : displayRecording(null, true, userStatsDataTextStyle)}
+                                   </div>
+                               </CardContent>
+                           </Card>
+                       );
+                   })()}
                  </>
                ) : (
+                 // This block will now only show if not loading, no error, user not found is false, and userData is null (initial state)
                  <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg w-full">
                    <CardHeader>
                      <CardTitle className="flex items-center gap-2 text-purple-400">
@@ -863,171 +982,220 @@ const Leaderboard = () => {
                      </CardTitle>
                    </CardHeader>
                    <CardContent>
-                     <p>Your stats are not available.</p>
+                     <p>Error loading your stats, make sure the User ID/Token and Track ID is correct.</p> {/* Updated initial message */}
                    </CardContent>
                  </Card>
                )}
-               {/* Leaderboard Section */}
-               <>
-                 <div className="text-center">
-                   <p className="text-lg sm:text-xl font-semibold text-blue-300 tracking-wide mb-2 flex items-center justify-center gap-2">
-                     <Trophy className="w-5 h-5" />
-                     Leaderboard
-                   </p>
-                   <p className="text-gray-400">Total Entries: {statsData?.total ?? 'N/A'}</p>
-                 </div>
-                 <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg w-full">
-                   <CardHeader />
-                   <CardContent>
-                     <div className="space-y-4">
-                       {/* AnimatePresence for the list items */}
-                       <AnimatePresence>
-                         {statsData?.entries.map((entry, index) => {
-                           const medal = getMedal(entry.percent as number | undefined);
-                           const posMedal = getPosMedal(entry.rank as number | undefined);
-
-                           // Determine text color and box style based on whether it's the user's entry
-                           let entryBoxStyle = 'bg-gray-800/50 border border-gray-700';
-                           let entryDataTextStyle = 'text-blue-300'; // Default color for non-user entry data
-
-                           if (entry.userId === userId) {
-                             if (posMedal) {
-                               entryBoxStyle = `bg-[${posMedal.color}]/20 border-2 border-[${posMedal.color}]/50`;
-                               entryDataTextStyle = `text-[${posMedal.color}]`;
-                             } else if (medal) {
-                               entryBoxStyle = `bg-[${medal.color}]/20 border-2 border-[${medal.color}]/50`;
-                               entryDataTextStyle = `text-[${medal.color}]`;
-                             }
-                             else {
-                               entryBoxStyle = 'bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-2 border-purple-500/50';
-                               entryDataTextStyle = 'text-white';
-                             }
-                           }
-
-                           return (
-                             // motion.div for each list item
-                             <motion.div
-                               key={entry.id} // Use entry.id as key for consistent animation
-                               variants={listItemVariants}
-                               initial="hidden"
-                               animate="visible"
-                               exit="hidden" // Animate out when removed (e.g., changing page)
-                               layout // Enable layout animations
-                               className={cn(
-                                 'p-4 rounded-lg',
-                                 entryBoxStyle, // Use the determined box style
-                                 'overflow-hidden'
-                               )}
-                             >
-                               {/* Horizontal layout for main data with dividers and justified spacing */}
-                               <div className="flex flex-wrap items-center justify-between divide-x divide-gray-700"> {/* Use justify-between for even spacing */}
-                                 {/* Rank */}
-                                 <div className="flex items-center gap-1 pr-4"> {/* Added right padding */}
-                                   <span className="font-semibold text-gray-300">Rank:</span>
-                                   <span className={entryDataTextStyle}>{typeof entry.rank === 'number' ? entry.rank : 'N/A'}</span> {/* Applied entryDataTextStyle */}
-                                    {/* Display rank with fallback */}
-                                   <div className="flex items-center justify-center w-6"> {/* Centering container */}
-                                     {posMedal ? (
-                                       <span data-tooltip-id={`posMedal-${entry.id}`} data-tooltip-content={posMedal?.label} style={{ color: posMedal?.color }}>{posMedal.icon}</span>
-                                     ) : null}
-                                   </div>
-                                 </div>
-                                 {/* Top % */}
-                                 <div className="flex items-center gap-1 px-4"> {/* Added horizontal padding */}
-                                   <span className="font-semibold text-gray-300">Top:</span>
-                                    {/* Display top % with fallback and formatting */}
-                                   <span className={entryDataTextStyle}>{typeof entry.percent === 'number' ? `${entry.percent.toFixed(4)}%` : 'N/A'}</span> {/* Applied entryDataTextStyle */}
-                                   <div className="flex items-center justify-center w-6"> {/* Centering container */}
-                                     {medal && medal.type === 'mineral' ? (
-                                       <span className="ml-1" data-tooltip-id={`medal-${entry.id}`} data-tooltip-content={medal?.label} style={{ color: medal?.color }}>{medal ? medal.icon : ''}</span>
-                                     ) : null}
-                                   </div>
-                                   <Tooltip id={`medal-${entry.id}`} className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: medal?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
-                                   <Tooltip id={`posMedal-${entry.id}`} className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: posMedal?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
-                                 </div>
-                                 {/* Name */}
-                                  <div className="flex items-center gap-1 px-4 flex-1 truncate"> {/* Added horizontal padding and flex-1 for name to take available space */}
-                                    <span className="font-semibold text-gray-300">Name:</span>
-                                    <span className={entryDataTextStyle + ' truncate'}>{entry.name}</span> {/* Applied entryDataTextStyle */}
-                                  </div>
-                                 {/* Time */}
-                                 <div className="flex items-center gap-1 px-4"> {/* Added horizontal padding */}
-                                     <span className="font-semibold text-gray-300">Time:</span> {/* Changed label from Frames to Time */}
-                                     <span className={entryDataTextStyle}>{formatTime(entry.frames)}</span> {/* Applied entryDataTextStyle */}
-                                 </div>
-                                 {/* Verified */}
-                                 <div className="flex items-center gap-1 px-4"> {/* Added horizontal padding */}
-                                     <span className="font-semibold text-gray-300">Verified:</span>
-                                     <VerifiedStateIcon verifiedState={entry.verifiedState} /> {/* Icon color is handled within the component */}
-                                 </div>
-                                 {/* Car Colors */}
-                                 <div className="flex items-center gap-1 pl-4"> {/* Added left padding */}
-                                     <span className="font-semibold text-gray-300">Colors:</span> {/* Changed label to Colors */}
-                                     {displayCarColors(entry.carColors)} {/* Color display is handled within the function */}
-                                 </div>
-                               </div>
-                               {/* User ID on a separate line */}
-                               <div className="mt-2"> {/* Added margin-top for separation */}
-                                 <span className="font-semibold text-gray-300">User ID:</span>
-                                 <span className={entryDataTextStyle + ' break-all ml-2'}>{entry.userId}</span> {/* Applied entryDataTextStyle and Added margin-left */}
-                               </div>
-                               {/* Recording data on a separate line */}
-                               <div className="mt-2 overflow-x-auto no-scroll"> {/* Added margin-top for separation */}
-                                 <span className="font-semibold text-gray-300">Recording:</span>
-                                 {recordingData && recordingData[index] ? displayRecording(recordingData[index]?.recording || null) : displayRecording(null)}
-                               </div>
-                             </motion.div>
-                           );
-                         })}
-                       </AnimatePresence>
+               {/* Leaderboard Section - Only render if statsData is available */}
+               {statsData && statsData.entries && (
+                   <>
+                     <div className="text-center">
+                       <p className="text-lg sm:text-xl font-semibold text-blue-300 tracking-wide mb-2 flex items-center justify-center gap-2">
+                         <Trophy className="w-5 h-5" />
+                         Leaderboard
+                       </p>
+                       <p className="text-gray-400">Total Entries: {statsData?.total ?? 'N/A'}</p>
                      </div>
-                     {/* Pagination */}
-                     <div className="flex items-center justify-center gap-2 mt-4">
-                       <Button variant="outline" size="icon" onClick={() => handlePageChange(1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
-                         <ChevronsLeft className="h-4 w-4" />
-                       </Button>
-                       <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
-                         <ChevronLeft className="h-4 w-4" />
-                       </Button>
-                       <span className="text-gray-300">Page {currentPage} of {totalPagesRef.current}</span>
-                       <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
-                         <ChevronRight className="h-4 w-4" />
-                       </Button>
-                        <Button variant="outline" size="icon" onClick={() => handlePageChange(Math.min(currentPage + 10, totalPagesRef.current))} disabled={currentPage + 10 > totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
-                           +{10}
-                       </Button>
-                       <Button variant="outline" size="icon" onClick={() => handlePageChange(totalPagesRef.current)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
-                         <ChevronsRight className="h-4 w-4" />
-                       </Button>
-                       {userPage && (
-                         <Button variant="outline" onClick={() => handlePageChange(userPage)} disabled={loading} className="bg-purple-900/50 text-white hover:bg-purple-800/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
-                           Go to Your Page ({userPage})
-                         </Button>
-                       )}
-                       <div className="flex items-center gap-2">
-                         <Input
-                           type="text"
-                           placeholder="Go to pos."
-                           value={goToPosition}
-                           onChange={(e) => setGoToPosition(e.target.value)}
-                           className="w-24 bg-gray-800/50 text-white border-gray-700 placeholder:text-gray-500 focus:ring-purple-500/50"
-                           onKeyDown={(e) => { if (e.key === 'Enter') handleGoToPage(); }}
-                         />
-                         <Button onClick={handleGoToPage} disabled={loading} className="bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
-                           Go
-                         </Button>
-                       </div>
-                     </div>
-                   </CardContent>
-                 </Card>
-               </>
+                     <Card className="bg-black/20 text-white border-purple-500/30 shadow-lg w-full">
+                       <CardHeader />
+                       <CardContent>
+                         <div className="space-y-4">
+                           {/* AnimatePresence for the list items */}
+                           <AnimatePresence>
+                             {statsData?.entries.map((entry, index) => {
+                               const medal = getMedal(entry.percent as number | undefined);
+                               const posMedal = getPosMedal(entry.rank as number | undefined);
+
+                               // Determine text color and box style based on whether it's the user's entry
+                               const isCurrentUserEntry = entry.userId === userId;
+                               let entryBoxStyle = 'bg-gray-800/50 border border-gray-700';
+                               let entryDataTextStyle = 'text-blue-300'; // Default color for non-user entry data
+
+                               if (isCurrentUserEntry) {
+                                 // User's entry - apply specific styles based on rank/medal
+                                 if (posMedal && posMedal.color === 'black') { // WR
+                                     entryBoxStyle = 'bg-black/20 border-2 border-black/50';
+                                     entryDataTextStyle = 'text-gray-100'; // White/gray for contrast
+                                 } else if (posMedal && posMedal.color === 'purple') { // Podium (Updated condition to 'purple')
+                                     entryBoxStyle = 'bg-purple-500/20 border-2 border-purple-500/50';
+                                     entryDataTextStyle = 'text-purple-300';
+                                 } else if (medal) { // Mineral medals
+                                     switch (medal.color) {
+                                         case 'cyan':
+                                             entryBoxStyle = 'bg-cyan-500/20 border-2 border-cyan-500/50';
+                                             entryDataTextStyle = 'text-cyan-300';
+                                             break;
+                                         case 'green':
+                                             entryBoxStyle = 'bg-green-500/20 border-2 border-green-500/50';
+                                             entryDataTextStyle = 'text-green-300';
+                                             break;
+                                         case 'gold': // Using yellow for gold
+                                             entryBoxStyle = 'bg-yellow-500/20 border-2 border-yellow-500/50';
+                                             entryDataTextStyle = 'text-yellow-300';
+                                             break;
+                                         case 'silver': // Using gray for silver
+                                             entryBoxStyle = 'bg-gray-400/20 border-2 border-gray-400/50';
+                                             entryDataTextStyle = 'text-gray-200';
+                                             break;
+                                         case 'bronze': // Using orange for bronze
+                                             entryBoxStyle = 'bg-orange-700/20 border-2 border-orange-700/50';
+                                             entryDataTextStyle = 'text-orange-300';
+                                             break;
+                                         default: // Fallback for other mineral colors or issues
+                                             entryBoxStyle = 'bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-2 border-purple-500/50';
+                                             entryDataTextStyle = 'text-white';
+                                     }
+                                 } else { // Default user highlight (if no specific medal/rank)
+                                   entryBoxStyle = 'bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-2 border-purple-500/50';
+                                   entryDataTextStyle = 'text-white';
+                                 }
+                               } else {
+                                 // Not the user's entry - apply default styles
+                                 entryBoxStyle = 'bg-gray-800/50 border border-gray-700';
+                                 entryDataTextStyle = 'text-blue-300'; // User ID and other data text color
+                               }
+
+                               // Simplified iconColor calculation
+                               const iconColor = posMedal?.color;
+
+                               return (
+                                 // motion.div for each list item
+                                 <motion.div
+                                   key={entry.id} // Use entry.id as key for consistent animation
+                                   variants={listItemVariants}
+                                   initial="hidden"
+                                   animate="visible"
+                                   exit="hidden" // Animate out when removed (e.g., changing page)
+                                   layout // Enable layout animations
+                                   className={cn(
+                                     'p-4 rounded-lg',
+                                     entryBoxStyle, // Use the determined box style
+                                     'overflow-hidden'
+                                   )}
+                                 >
+                                   {/* Horizontal layout for main data with consistent gap and wrapping */}
+                                   <div className="flex flex-wrap items-center gap-x-4"> {/* Using gap-x for horizontal spacing */}
+                                     {/* Rank */}
+                                     <div className="flex items-center gap-1">
+                                       <span className="font-semibold text-gray-300">Rank:</span>
+                                       <span className={entryDataTextStyle}>{typeof entry.rank === 'number' ? entry.rank : 'N/A'}</span>
+                                        {/* Display rank with fallback */}
+                                       <div className="flex items-center justify-center w-6"> {/* Centering container */}
+                                         {posMedal ? (
+                                           <span data-tooltip-id={`posMedal-${entry.id}`} data-tooltip-content={posMedal?.label} style={{ color: iconColor }}>{posMedal.icon}</span>
+                                         ) : null}
+                                       </div>
+                                     </div>
+                                     {/* Name */}
+                                      <div className="flex items-center gap-1 flex-1 min-w-0 truncate"> {/* Added min-w-0 to allow shrinking */}
+                                        <span className="font-semibold text-gray-300">Name:</span>
+                                        <span className={entryDataTextStyle + ' truncate'}>{entry.name}</span>
+                                      </div>
+                                     {/* Time */}
+                                     <div className="flex items-center gap-1">
+                                         <span className="font-semibold text-gray-300">Time:</span> {/* Changed label from Frames to Time */}
+                                         <span className={entryDataTextStyle}>{formatTime(entry.frames)}</span>
+                                     </div>
+                                     {/* Top % */}
+                                     <div className="flex items-center gap-1">
+                                       <span className="font-semibold text-gray-300">Top:</span>
+                                        {/* Display top % with fallback and formatting */}
+                                       <span className={entryDataTextStyle}>{typeof entry.percent === 'number' ? `${entry.percent.toFixed(4)}%` : 'N/A'}</span>
+                                       <div className="flex items-center justify-center w-6"> {/* Centering container */}
+                                         {medal && medal.type === 'mineral' ? (
+                                           <span className="ml-1" data-tooltip-id={`medal-${entry.id}`} data-tooltip-content={medal?.label} style={{ color: medal?.color }}>{medal ? medal.icon : ''}</span>
+                                         ) : null}
+                                       </div>
+                                       <Tooltip id={`medal-${entry.id}`} className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: medal?.color, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
+                                       <Tooltip id={`posMedal-${entry.id}`} className="rounded-md" style={{ backgroundColor: "rgb(27, 21, 49)", color: iconColor, fontSize: "1rem", padding: "0.25rem 0.5rem" }} />
+                                     </div>
+                                     {/* Verified */}
+                                     <div className="flex items-center gap-1">
+                                         <span className="font-semibold text-gray-300">Verified:</span>
+                                         <VerifiedStateIcon verifiedState={entry.verifiedState} /> {/* Icon color is handled within the component */}
+                                     </div>
+                                     {/* Car Colors */}
+                                     <div className="flex items-center gap-1">
+                                         <span className="font-semibold text-gray-300">Colors:</span> {/* Changed label to Colors */}
+                                         {displayCarColors(entry.carColors)} {/* Color display is handled within the function */}
+                                     </div>
+                                   </div>
+                                   {/* User ID on a separate line */}
+                                   <div className="mt-2 flex items-center gap-2"> {/* Added margin-top and flex container for User ID and Copy button */}
+                                     <span className="font-semibold text-gray-300">User ID:</span>
+                                     <span className={cn('break-all', entryDataTextStyle)}>{entry.userId}</span> {/* Applied entryDataTextStyle and break-all */}
+                                     {entry.userId && (
+                                         // User ID Copy Button - Added grey/transparent hover
+                                         <Button
+                                             variant="ghost" // Use ghost variant for a subtle button
+                                             size="sm"
+                                             onClick={() => copyToClipboard(entry.userId)}
+                                             className="p-1 h-auto text-gray-400 hover:text-white hover:bg-gray-700/20" // Added hover background
+                                             title="Copy User ID"
+                                         >
+                                             <Copy className="w-3 h-3" />
+                                         </Button>
+                                     )}
+                                   </div>
+                                   {/* Recording data on a separate line */}
+                                   <div className="mt-2 overflow-x-auto no-scroll"> {/* Added margin-top for separation */}
+                                     <span className="font-semibold text-gray-300">Recording:</span>
+                                     {/* Pass isCurrentUserEntry flag to displayRecording */}
+                                     {recordingData && recordingData[index] ? displayRecording(recordingData[index]?.recording || null, isCurrentUserEntry, entryDataTextStyle) : displayRecording(null, isCurrentUserEntry, entryDataTextStyle)}
+                                   </div>
+                                 </motion.div>
+                               );
+                             })}
+                           </AnimatePresence>
+                         </div>
+                         {/* Pagination */}
+                         <div className="flex items-center justify-center gap-2 mt-4">
+                           <Button variant="outline" size="icon" onClick={() => handlePageChange(1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                             <ChevronsLeft className="h-4 w-4" />
+                           </Button>
+                           <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                             <ChevronLeft className="h-4 w-4" />
+                           </Button>
+                           <span className="text-gray-300">Page {currentPage} of {totalPagesRef.current}</span>
+                           <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                             <ChevronRight className="h-4 w-4" />
+                           </Button>
+                            <Button variant="outline" size="icon" onClick={() => handlePageChange(Math.min(currentPage + 10, totalPagesRef.current))} disabled={currentPage + 10 > totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                               +{10}
+                           </Button>
+                           <Button variant="outline" size="icon" onClick={() => handlePageChange(totalPagesRef.current)} disabled={currentPage === totalPagesRef.current || loading} className="bg-gray-800/50 text-white hover:bg-gray-700/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                             <ChevronsRight className="h-4 w-4" />
+                           </Button>
+                           {userPage && (
+                             <Button variant="outline" onClick={() => handlePageChange(userPage)} disabled={loading} className="bg-purple-900/50 text-white hover:bg-purple-800/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                               Go to Your Page ({userPage})
+                             </Button>
+                           )}
+                           <div className="flex items-center gap-2">
+                             <Input
+                               type="text"
+                               placeholder="Go to pos."
+                               value={goToPosition}
+                               onChange={(e) => setGoToPosition(e.target.value)}
+                               className="w-24 bg-gray-800/50 text-white border-gray-700 placeholder:text-gray-500 focus:ring-purple-500/50"
+                               onKeyDown={(e) => { if (e.key === 'Enter') handleGoToPage(); }}
+                             />
+                             <Button onClick={handleGoToPage} disabled={loading} className="bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                               Go
+                             </Button>
+                           </div>
+                         </div>
+                       </CardContent>
+                     </Card>
+                   </>
+               )}
              </motion.div>
-           )}
+           ) : null} {/* Render nothing if neither statsData nor userNotFoundOnTrack is true */}
          </AnimatePresence>
        </motion.div>
        {/* Version and Link - Positioned outside the animated motion.div */}
-       {/* Conditionally render this div based on whether statsData is null */}
-       {!statsData && (
+       {/* Conditionally render this div based on whether statsData is null AND userNotFoundOnTrack is false */}
+       {!statsData && !userNotFoundOnTrack && (
          <div className="text-center text-gray-500 text-sm mt-4 absolute bottom-4 left-1/2 transform -translate-x-1/2">
            <p>Version: {VERSION}</p>
            <p>
@@ -1049,4 +1217,4 @@ const Leaderboard = () => {
  };
 
  export default Leaderboard;
- 
+
