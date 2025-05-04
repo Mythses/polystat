@@ -122,6 +122,7 @@ const Home = () => {
                   <li>Go to your "Profile," select a profile, and click "Export."</li>
                   <li>A disclaimer will appear. Please note that Polystats does not save or share any user data.</li>
                 </ul>
+                <p>This site is still in beta and likely has many issues. For the time being please contact "roowus" on Discord for bugs and suggestions</p>
               </motion.div>
             )}
           </AnimatePresence>
