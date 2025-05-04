@@ -1168,7 +1168,7 @@ const Leaderboard = () => {
                            </Button>
                            {userPage && (
                              <Button variant="outline" onClick={() => handlePageChange(userPage)} disabled={loading} className="bg-purple-900/50 text-white hover:bg-purple-800/50 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed">
-                               Go to Your Page ({userPage})
+                               Go to User's Page ({userPage})
                              </Button>
                            )}
                            <div className="flex items-center gap-2">
