@@ -774,12 +774,25 @@ const UserViewer = () => {
       const wrResults = await Promise.allSettled(wrFetchPromises);
       const fetchedWrTimesMap = new Map<string, number | null>();
       wrResults.forEach(result => {
-          if (result.status === 'fulfilled') {
-              fetchedWrTimesMap.set(result.value.trackId, result.value.wrTime);
-          } else {
-              console.error(`Failed to fetch WR for track ${result.reason.trackId}:`, result.reason.error);
-              fetchedWrTimesMap.set(result.reason.trackId, null); // Store null for failed WR fetches
-          }
+        if (result.status === 'fulfilled') {
+            // Check if the fulfilled value has the wrTime property
+            if (result.value && typeof result.value === 'object' && 'wrTime' in result.value) {
+                 fetchedWrTimesMap.set(result.value.trackId, result.value.wrTime);
+            } else if (result.value && typeof result.value === 'object' && 'error' in result.value) {
+                 // If the fulfilled value is an error object (from the inner catch)
+                 console.error(`Failed to fetch WR for track ${result.value.trackId}:`, result.value.error);
+                 fetchedWrTimesMap.set(result.value.trackId, null); // Store null for failed WR fetches
+            } else {
+                // Handle unexpected structure of fulfilled value
+                console.error('Unexpected fulfilled WR result structure:', result.value);
+            }
+        } else { // result.status === 'rejected'
+            // Access reason for rejected promises
+            const rejectedReason = result.reason as any; // Cast reason to any
+            const trackId = rejectedReason.trackId || 'unknown'; // Access trackId from the casted object with fallback
+            console.error(`Failed to fetch WR for track ${trackId}:`, rejectedReason.error || 'Unknown error'); // Use trackId and error from casted object
+            fetchedWrTimesMap.set(trackId, null); // Store null for failed WR fetches
+        }
       });
       setWrTimesByTrack(fetchedWrTimesMap); // Set the fetched WR times map
 
@@ -1598,11 +1611,11 @@ const UserViewer = () => {
            if (!fetchedBasicData || !fetchedBasicData.name) {
                // If basic data fetch was successful but returned no name (e.e., token invalid or user doesn't exist via token API)
                processingError = 'Could not retrieve user information for the provided User Token.';
-               setBasicUserData({
-                   name: 'User Info Unavailable (Token Lookup Failed)',
-                   carColors: '',
-                   isVerifier: false, // isVerifier will be false if token lookup fails
-               });
+               setBasicUserData({ // Corrected typo from setBasicData
+                name: 'User Not Found on any tracks',
+                carColors: '',
+                isVerifier: 'N/A'
+           });
            }
         } catch (e: any) {
           const errorMessage = e.message || 'Failed to process user token or fetch basic data.';
@@ -1610,10 +1623,10 @@ const UserViewer = () => {
           console.error('Token processing error:', errorMessage, e);
            // Set placeholder basic data on token error
            setBasicUserData({
-                name: 'User Info Unavailable (Token Error)',
+                name: 'User Not Found on any tracks',
                 carColors: '',
-                isVerifier: false, // isVerifier will be false if token lookup fails
-           });
+                isVerifier: 'N/A'
+            });
         }
       }
 
