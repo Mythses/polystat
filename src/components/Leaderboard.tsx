@@ -48,11 +48,11 @@ const PREDEFINED_TRACKS = [
   { name: 'concrete jungle', id: '0544f97453f7b0e2a310dfb0dcd331b4060ae2e9cb14ac27dc5367183dab0513' },
   { name: 'lu muvimento', id: '2ccd83e9419b6071ad9272b73e549e427b1a0f62d5305015839ae1e08fb86ce6' },
   { name: 'Re : Akina', id: 'f112ab979138b9916221cbf46329fa7377a745bdd18cd3d00b4ffd6a8a68f113' },
-  { name: "Hyperion's Sanctuary", id: 'b41ac84904b60d00efa5ab8bb60f42c929c16d8ebbfe2f77126891fcddab9c1c' },
+  { name: "Hyperion's Sanctuary", id: 'b41ac84904b60d00efa5ab8bb60f42c929c16d9ebbfe2f77126891fcddab9c1c' },
   { name: 'Opal Palace - Repolished', id: '89f1a70d0e6be8297ec340a378b890f3fed7d0e20e3ef15b5d32ef4ef7ff1701' },
   { name: 'Snow Park', id: '2978b99f058cb3a2ce6f97c435c803b8d638400532d7c79028b2ec3d5e093882' },
   { name: 'Winter Hollow', id: '2046c377ac7ec5326b263c46587f30b66ba856257ddc317a866e3e7f66a73929' },
-  { name: 'Arabica', id: '1aadcef252749318227d5cd4ce61a4a71526087857104fd57697b6fc63102e8a' },
+  { name: 'Arabica', id: '1aadcef252749318227d5cd4ce61a4a7152608787104fd57697b6fc63102e8a' },
   { name: 'Clay temples', id: '773eb0b02b97a72f3e482738cda7a5292294800497e16d9366e4f4c88a6f4e2d' }, // Corrected ID
   { name: 'DESERT STALLION', id: '932da81567f2b223fa1a52d88d6db52016600c5b9df02218f06c9eb832ecddeb' },
   { name: 'Las Calles', id: '97da746d9b3ddd5a861fa8da7fcb6f6402ffa21f8f5cf61029d7a947bad76290' },
@@ -121,7 +121,8 @@ const getMedal = (percent: number | undefined) => {
   if (percent <= 0.5) return { icon: '♦', label: 'Emerald', color: 'green', type: 'mineral' };
   if (percent <= 5) return { icon: '♦', label: 'Gold', color: 'gold', type: 'mineral' };
   if (percent <= 15) return { icon: '♦', label: 'Silver', color: 'silver', type: 'mineral' };
-  if (percent <= 25) return { icon: '♦', label: 'Bronze', color: 'bronze', type: 'mineral' };
+  // Changed 'bronze' string to a hex code for a bronze color
+  if (percent <= 25) return { icon: '♦', label: 'Bronze', color: '#CD7F32', type: 'mineral' }; // Using a hex code for bronze
   return null;
 };
 
@@ -896,9 +897,9 @@ const Leaderboard = () => {
                                    userStatsBoxStyle = 'bg-gray-400/20 border-2 border-gray-400/50';
                                    userStatsDataTextStyle = 'text-gray-200';
                                    break;
-                               case 'bronze': // Using orange for bronze
-                                   userStatsBoxStyle = 'bg-orange-700/20 border-2 border-orange-700/50';
-                                   userStatsDataTextStyle = 'text-orange-300';
+                               case '#CD7F32': // Using the hex code for bronze
+                                   userStatsBoxStyle = 'bg-orange-700/20 border-2 border-orange-700/50'; // Still using orange-700 for background
+                                   userStatsDataTextStyle = 'text-orange-300'; // Still using orange-300 for text
                                    break;
                                default: // Fallback
                                    userStatsBoxStyle = 'bg-black/20 border-purple-500/30';
@@ -1037,9 +1038,9 @@ const Leaderboard = () => {
                                              entryBoxStyle = 'bg-gray-400/20 border-2 border-gray-400/50';
                                              entryDataTextStyle = 'text-gray-200';
                                              break;
-                                         case 'bronze': // Using orange for bronze
-                                             entryBoxStyle = 'bg-orange-700/20 border-2 border-orange-700/50';
-                                             entryDataTextStyle = 'text-orange-300';
+                                         case '#CD7F32': // Using the hex code for bronze
+                                          entryBoxStyle = 'bg-orange-700/20 border-2 border-orange-700/50'; // Still using orange-700 for background
+                                          entryDataTextStyle = 'text-orange-300'; // Still using orange-300 for text
                                              break;
                                          default: // Fallback for other mineral colors or issues
                                              entryBoxStyle = 'bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-2 border-purple-500/50';
